@@ -4,6 +4,7 @@ from gql import gql, Client
 from gql.transport.aiohttp import AIOHTTPTransport
 import json
 import requests
+from get_secret import get_secret
 
 async def fetch_data_and_save_as_csv():
     transport = AIOHTTPTransport(url="https://cache-service.chainflip.io/graphql")
@@ -63,7 +64,7 @@ async def fetch_data_and_save_as_csv():
         return csv_content, keys
 
 
-dune_api_key = 'fJzYoxTdcSaoJKTQ3IC65ubdBaKpCPIf'
+dune_api_key = get_secret()
 
 def upload_csv(csv_content, keys):
   api_key = dune_api_key
@@ -93,11 +94,8 @@ def upload_csv(csv_content, keys):
     print('Response content:', response.content)
 
 
-def lambda_handler(event, context):
+
+def validators_main():
   loop = asyncio.get_event_loop()
   csv_content, keys = loop.run_until_complete(fetch_data_and_save_as_csv())
   upload_csv(csv_content, keys)
-  return {
-    'statusCode': 200,
-    'body': json.dumps('Lambda function executed successfully!')
-  }
