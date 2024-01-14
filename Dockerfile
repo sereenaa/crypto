@@ -5,6 +5,7 @@ COPY get_secret.py ${LAMBDA_TASK_ROOT}
 COPY util.py ${LAMBDA_TASK_ROOT}
 COPY validators.py ${LAMBDA_TASK_ROOT}
 COPY circulation.py ${LAMBDA_TASK_ROOT}
+COPY gmx_positions.py ${LAMBDA_TASK_ROOT}
 COPY main.py ${LAMBDA_TASK_ROOT}
 
 
