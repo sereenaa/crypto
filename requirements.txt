@@ -2,4 +2,5 @@ aiohttp
 boto3
 gql[all]
 requests
+pandas
 web3
