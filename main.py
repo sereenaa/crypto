@@ -1,5 +1,6 @@
 import json
 from circulation import circulation_main
+from gmx_positions import gmx_positions_main
 from validators import validators_main
 
 def lambda_handler(event, context):
@@ -7,6 +8,7 @@ def lambda_handler(event, context):
   try: 
     validators_main()
     circulation_main()
+    gmx_positions_main()
 
     return {
       'statusCode': 200,

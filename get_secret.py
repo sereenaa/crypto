@@ -8,9 +8,13 @@ from botocore.exceptions import ClientError
 import json
 
 
-def get_secret():
+def get_secret(pibbles=False):
 
-    secret_name = "Dune-api-key"
+    if pibbles:
+        secret_name = 'dune-api-key-pibbles'
+    else:
+        secret_name = "Dune-api-key"
+
     region_name = "ap-southeast-2"
 
     # Create a Secrets Manager client
