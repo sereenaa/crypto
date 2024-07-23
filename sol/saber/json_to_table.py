@@ -1,7 +1,9 @@
 import pandas as pd
 import json
 
-with open('saber.json', 'r') as file:
+
+filename = 'swaps_mainnet.json'
+with open(filename, 'r') as file:
     data = json.load(file)
 
 
@@ -27,7 +29,7 @@ def flatten_json(json_obj, sep='_'):
         return result
 
     if isinstance(json_obj, list):
-        return {f'row{index}': flatten(item) for index, item in enumerate(json_obj)}
+        return {f'{index}': flatten(item) for index, item in enumerate(json_obj)}
     else:
         return {key: flatten(value) for key, value in json_obj.items()}
 
@@ -39,5 +41,5 @@ def json_to_table(file_path):
     return df
 
 
-df = json_to_table('saber.json')
-df.to_csv('pools.csv')
+df = json_to_table(filename)
+df.to_csv('swaps_mainnet.csv')
