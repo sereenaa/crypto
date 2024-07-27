@@ -4,7 +4,7 @@
   "containerDefinitions": [
     {
       "name": "proof-of-play",
-      "image": "127430557055.dkr.ecr.your-region.amazonaws.com/proof-of-play:transactions-latest",
+      "image": "127430557055.dkr.ecr.ap-southeast-2.amazonaws.com/proof-of-play:transactions-latest",
       "essential": true,
       "memory": 512,
       "cpu": 256,
