@@ -39,15 +39,15 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$tag
 
     - name: Update ECS task definition
-        id: update_task
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ecs-task-definition.json
-          container-name: proof-of-play
-          image: ${{ steps.uild-and-push.outputs.image }}
+      id: update_task
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: ecs-task-definition.json
+        container-name: proof-of-play
+        image: ${{ steps.uild-and-push.outputs.image }}
 
-      - name: Deploy ECS task definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          cluster: proof-of-play
-          wait-for-service-stability: true
+    - name: Deploy ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        cluster: proof-of-play
+        wait-for-service-stability: true
