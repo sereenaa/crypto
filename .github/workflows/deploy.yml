@@ -46,9 +46,3 @@ jobs:
         task-definition: ecs-task-definition.json
         container-name: proof-of-play
         image: ${{ env.image }}
-
-    - name: Deploy ECS task definition
-      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-      with:
-        cluster: proof-of-play
-        wait-for-service-stability: true
