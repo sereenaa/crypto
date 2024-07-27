@@ -19,6 +19,9 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 # Add rust to the PATH
 ENV PATH="/root/.cargo/bin:${PATH}"
 
+# Verify Rust installation
+RUN rustc --version
+
 # Install necessary Python libraries
 RUN pip install --no-cache-dir maturin pandas polars pyarrow python-dotenv web3 --verbose
 
@@ -29,14 +32,19 @@ RUN git clone https://github.com/paradigmxyz/cryo
 WORKDIR /app/cryo/crates/python
 RUN maturin build --release
 
+# List the contents of the target/wheels directory to verify the .whl file is created
+RUN ls target/wheels
+
 # Install the Python wrapper
 RUN pip install --force-reinstall target/wheels/*.whl --verbose
 
-# Copy the current directory contents into the container at /app
+# Set the working directory back to /app
 WORKDIR /app
+
+# Copy the current directory contents into the container at /app
 COPY . /app
 
-# Install any additional packages specified in requirements.txt
+# Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt --verbose
 
 # Make port 80 available to the world outside this container
