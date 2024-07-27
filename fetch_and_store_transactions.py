@@ -30,7 +30,7 @@ def main():
     latest_block = web3.eth.block_number
 
     # Fetch the latest timestamps and block numbers from Snowflake
-    latest_tx_timestamp, latest_tx_block = fetch_latest_timestamp_and_block_number(secret, 'TRANSACTIONS')
+    latest_tx_block = fetch_latest_block_number(secret, 'TRANSACTIONS')
 
     # Determine the start block based on the latest block number from Snowflake
     start_block_tx = latest_tx_block + 1 if latest_tx_block else latest_block
@@ -39,7 +39,7 @@ def main():
 
     # Fetch and store data in batches
     batch_start = start_block_tx
-    while batch_start <= latest_block:
+    while batch_start < latest_block:
       batch_end = min(batch_start + batch_size, latest_block)
       fetch_and_push_transactions_with_cryo(secret, rpc, batch_start, batch_end)
       batch_start += batch_size

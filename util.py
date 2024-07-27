@@ -1,5 +1,4 @@
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import cryo
 from datetime import datetime, timezone
 from evm_trace import TraceFrame, CallType, get_calltree_from_geth_trace
@@ -7,12 +6,10 @@ import pandas as pd
 import snowflake.connector
 from snowflake.connector.pandas_tools import write_pandas
 import time
-from web3 import HTTPProvider, Web3
 
 # Format long numbers with comma notation
 def format_number_with_commas(number):
     return "{:,}".format(number)
-
 # Utility function to create a Snowflake connection
 def get_snowflake_connection(secret):
     return snowflake.connector.connect(
@@ -24,18 +21,16 @@ def get_snowflake_connection(secret):
         schema='RAW',
         login_timeout=30  # Increase the timeout for login
     )
-
 # Fetch the latest timestamp and block number from the Snowflake table
-def fetch_latest_timestamp_and_block_number(secret, table_name):
+def fetch_latest_block_number(secret, table_name):
     conn = get_snowflake_connection(secret)
-    query = f"SELECT MAX(block_time) AS max_time, MAX(block_number) AS max_block FROM {table_name}"
+    query = f"SELECT MAX(block_number) AS max_block FROM {table_name}"
     cursor = conn.cursor()
     cursor.execute(query)
     result = cursor.fetchone()
     cursor.close()
     conn.close()
-    return result
-
+    return result[0]
 # Function to perform delta append using pandas to_sql
 def delta_append(secret, table_name, df):
     conn = get_snowflake_connection(secret)
@@ -90,7 +85,6 @@ def fetch_transactions(web3, block_num):
             "MAX_FEE_PER_BLOB_GAS": None
         })
     return data
-
 # Function to fetch logs
 def fetch_logs(web3, block_num):
     data = []
@@ -128,7 +122,6 @@ def fetch_logs(web3, block_num):
                 "BLOB_GAS_USED": None
             })
     return data
-
 # Function to fetch and process trace data
 def fetch_trace_data(web3, txn_hash):
     # Fetch the transaction receipt for additional details
@@ -184,7 +177,6 @@ def fetch_trace_data(web3, txn_hash):
     }
 
     return trace_data
-
 def fetch_traces(web3, block_num):
     data = []
     block = web3.eth.get_block(block_num, full_transactions=True)
@@ -269,3 +261,64 @@ def fetch_and_push_transactions_with_cryo(secret, rpc, start_block, end_block):
     end_time = time.time()
     print(f"Time taken for batch of {end_block-start_block} blocks: {end_time - start_time:.2f} seconds")
     delta_append(secret, 'TRANSACTIONS', df)
+# Function to fetch and push logs for a range of blocks using cryo
+def fetch_and_push_logs_with_cryo(secret, rpc, start_block, end_block):
+    start_time = time.time()
+    log_data = cryo.collect(
+        "logs", 
+        blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
+        rpc=rpc, 
+        output_format="pandas", 
+        hex=True, 
+        requests_per_second=25
+    )
+    log_data.columns = log_data.columns.str.upper()
+    end_time = time.time()
+    print(f"Time taken for batch of {end_block-start_block} blocks: {end_time - start_time:.2f} seconds")
+    delta_append(secret, 'LOGS', log_data)
+# Function to fetch and push traces for a range of blocks using cryo
+def fetch_and_push_traces_with_cryo(secret, rpc, start_block, end_block):
+    start_time = time.time()
+    trace_data = cryo.collect(
+        "geth_calls", 
+        blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
+        rpc=rpc, 
+        output_format="pandas", 
+        hex=True, 
+        requests_per_second=25
+    )
+
+    trace_data.rename(columns={
+        'block_number': 'BLOCK_NUMBER',
+        'transaction_hash': 'TX_HASH',
+        'transaction_index': 'TX_INDEX',
+        'from_address': 'FROM_ADDRESS',
+        'to_address': 'TO_ADDRESS',
+        'value_string': 'VALUE',
+        'gas_string': 'GAS_PRICE',
+        'gas_used_string': 'GAS_USED',
+        'error': 'ERROR',
+        'trace_address': 'TRACE_ADDRESS',
+        'typ': 'TYPE',
+        'input': 'INPUT', 
+        'output': 'OUTPUT'
+    }, inplace=True)
+
+    # Specify the desired column order
+    column_order = [
+        'BLOCK_NUMBER', 'TX_HASH', 'TX_INDEX', 'FROM_ADDRESS', 'TO_ADDRESS', 
+        'VALUE', 'GAS_PRICE', 'GAS_USED', 'ERROR', 'TRACE_ADDRESS', 'TYPE', 
+        'INPUT', 'OUTPUT'
+    ]
+
+    # Add missing columns with NaN values
+    for col in column_order:
+        if col not in trace_data.columns:
+            trace_data[col] = None
+
+    # Reorder the DataFrame
+    df = trace_data[column_order]
+
+    end_time = time.time()
+    print(f"Time taken for batch of {end_block-start_block} blocks: {end_time - start_time:.2f} seconds")
+    delta_append(secret, 'TRACES', df)
