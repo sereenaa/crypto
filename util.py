@@ -41,12 +41,12 @@ def delta_append(secret, table_name, data, unique_key):
     df = pd.DataFrame(data)
 
     # Fetch existing unique keys
-    existing_keys_query = f"SELECT DISTINCT({unique_key}) FROM {table_name}"
-    cursor.execute(existing_keys_query)
-    existing_keys = {row[0] for row in cursor.fetchall()}
+    # existing_keys_query = f"SELECT DISTINCT({unique_key}) FROM {table_name}"
+    # cursor.execute(existing_keys_query)
+    # existing_keys = {row[0] for row in cursor.fetchall()}
 
-    # Filter out existing data
-    df = df[~df[unique_key].isin(existing_keys)]
+    # # Filter out existing data
+    # df = df[~df[unique_key].isin(existing_keys)]
 
     # Append new data using write_pandas
     if not df.empty:

@@ -37,6 +37,8 @@ jobs:
         tag=${{ github.ref == 'refs/heads/pop-index-transactions' && 'transactions-latest' || 'latest' }}
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$tag .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$tag
+      outputs:
+        image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.ref == 'refs/heads/pop-index-transactions' && 'transactions-latest' || 'latest' }}
 
     - name: Update ECS task definition
       id: update_task
