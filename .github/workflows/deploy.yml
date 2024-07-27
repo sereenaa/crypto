@@ -37,8 +37,7 @@ jobs:
         tag=${{ github.ref == 'refs/heads/pop-index-transactions' && 'transactions-latest' || 'latest' }}
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$tag .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$tag
-      outputs:
-        image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.ref == 'refs/heads/pop-index-transactions' && 'transactions-latest' || 'latest' }}
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$tag" >> $GITHUB_ENV
 
     - name: Update ECS task definition
       id: update_task
@@ -46,7 +45,7 @@ jobs:
       with:
         task-definition: ecs-task-definition.json
         container-name: proof-of-play
-        image: ${{ steps.build-and-push.outputs.image }}
+        image: ${{ env.image }}
 
     - name: Deploy ECS task definition
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
