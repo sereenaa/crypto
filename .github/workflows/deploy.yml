@@ -44,7 +44,7 @@ jobs:
       with:
         task-definition: ecs-task-definition.json
         container-name: proof-of-play
-        image: ${{ steps.uild-and-push.outputs.image }}
+        image: ${{ steps.build-and-push.outputs.image }}
 
     - name: Deploy ECS task definition
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
