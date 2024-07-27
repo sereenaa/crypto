@@ -32,11 +32,14 @@ RUN git clone https://github.com/paradigmxyz/cryo
 WORKDIR /app/cryo/crates/python
 RUN maturin build --release
 
-# List the contents of the target/wheels directory to verify the .whl file is created
-RUN ls target/wheels
+# Debug: List the contents of the target directory to verify the build
+RUN ls -al /app/cryo/target
+
+# Debug: List the contents of the target/wheels directory to verify the .whl file is created
+RUN ls -al /app/cryo/target/wheels
 
 # Install the Python wrapper
-RUN pip install --force-reinstall target/wheels/*.whl --verbose
+RUN pip install --force-reinstall /app/cryo/target/wheels/*.whl --verbose
 
 # Set the working directory back to /app
 WORKDIR /app
