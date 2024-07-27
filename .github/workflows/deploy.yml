@@ -39,14 +39,6 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$tag
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$tag" >> $GITHUB_ENV
 
-    - name: Update ECS task definition
-      id: update_task
-      uses: aws-actions/amazon-ecs-render-task-definition@v1
-      with:
-        task-definition: ecs-task-definition.json
-        container-name: proof-of-play
-        image: ${{ env.image }}
-
     - name: Register new ECS task definition revision
       id: register_task
       run: |
