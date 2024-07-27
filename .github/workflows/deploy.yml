@@ -43,4 +43,4 @@ jobs:
       id: register_task
       run: |
         aws ecs register-task-definition --cli-input-json file://ecs-task-definition.json
-        aws ecs describe-task-definition --task-definition proof-of-play
+        aws ecs describe-task-definition --task-definition proof-of-play-transactions

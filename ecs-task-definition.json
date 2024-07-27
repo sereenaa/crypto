@@ -1,5 +1,5 @@
 {
-  "family": "proof-of-play",
+  "family": "proof-of-play-transactions",
   "networkMode": "awsvpc",
   "containerDefinitions": [
     {
