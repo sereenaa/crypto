@@ -1,25 +1,15 @@
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from evm_trace import TraceFrame, CallType, get_calltree_from_geth_trace
 import pandas as pd
-import time
-from web3 import HTTPProvider, Web3
-from requests.exceptions import ReadTimeout
 import snowflake.connector
 from snowflake.connector.pandas_tools import write_pandas
-from get_secret import get_secret
-from evm_trace import TraceFrame, CallType, get_calltree_from_geth_trace
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
-
-# Snowflake connection details
-secret = get_secret(user='notnotsez')
-
-# Connect to the blockchain RPC endpoint
-rpc_url = 'https://rpc.apex.proofofplay.com'
-web3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 30}))
+import time
+from web3 import HTTPProvider, Web3
 
 # Utility function to create a Snowflake connection
-def get_snowflake_connection():
+def get_snowflake_connection(secret):
     return snowflake.connector.connect(
         user=secret['user'],
         password=secret['password'],
@@ -31,8 +21,8 @@ def get_snowflake_connection():
     )
 
 # Fetch the latest timestamp and block number from the Snowflake table
-def fetch_latest_timestamp_and_block_number(table_name):
-    conn = get_snowflake_connection()
+def fetch_latest_timestamp_and_block_number(secret, table_name):
+    conn = get_snowflake_connection(secret)
     query = f"SELECT MAX(block_time) AS max_time, MAX(block_number) AS max_block FROM {table_name}"
     cursor = conn.cursor()
     cursor.execute(query)
@@ -42,11 +32,11 @@ def fetch_latest_timestamp_and_block_number(table_name):
     return result
 
 # Function to perform delta append using pandas to_sql
-def delta_append(table_name, data, unique_key):
+def delta_append(secret, table_name, data, unique_key):
     if not data:
         return
     
-    conn = get_snowflake_connection()
+    conn = get_snowflake_connection(secret)
     cursor = conn.cursor()
     df = pd.DataFrame(data)
 
@@ -69,8 +59,9 @@ def delta_append(table_name, data, unique_key):
     cursor.close()
     conn.close()
 
+
 # Function to fetch transactions
-def fetch_transactions(block_num):
+def fetch_transactions(web3, block_num):
     print(f"Fetching transactions from block number {block_num}...")
     data = []
     block = web3.eth.get_block(block_num, full_transactions=True)
@@ -107,26 +98,9 @@ def fetch_transactions(block_num):
         })
     return data
 
-def fetch_and_store_transactions(start_block, end_block, batch_size, max_workers=10):
-    data = []
-    start_time = time.time()
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(fetch_transactions, block_num) for block_num in range(start_block, end_block + 1)]
-        for future in as_completed(futures):
-            data.extend(future.result())
-            if len(data) >= batch_size:
-                delta_append('TRANSACTIONS', data, 'TX_HASH')
-                end_time = time.time()
-                print(f"Time taken for batch of {batch_size} transactions: {end_time - start_time:.2f} seconds")
-                start_time = time.time()
-                data = []
-
-    if data:
-        delta_append('TRANSACTIONS', data, 'TX_HASH')
-
 
 # Function to fetch logs
-def fetch_logs(block_num):
+def fetch_logs(web3, block_num):
     data = []
     block = web3.eth.get_block(block_num, full_transactions=True)
     block_time = block['timestamp']
@@ -163,25 +137,9 @@ def fetch_logs(block_num):
             })
     return data
 
-def fetch_and_store_logs(start_block, end_block, batch_size, max_workers=10):
-    data = []
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(fetch_logs, block_num) for block_num in range(start_block, end_block + 1)]
-        for future in as_completed(futures):
-            data.extend(future.result())
-            if len(data) >= batch_size:
-                start_time = time.time()
-                delta_append('LOGS', data, 'TX_HASH')
-                end_time = time.time()
-                print(f"Time taken for batch of {batch_size} logs: {end_time - start_time:.2f} seconds")
-                data = []
-
-    if data:
-        delta_append('LOGS', data, 'TX_HASH')
-
 
 # Function to fetch and process trace data
-def fetch_trace_data(txn_hash):
+def fetch_trace_data(web3, txn_hash):
     # Fetch the transaction receipt for additional details
     tx_receipt = web3.eth.get_transaction_receipt(txn_hash)
 
@@ -236,52 +194,10 @@ def fetch_trace_data(txn_hash):
 
     return trace_data
 
-def fetch_traces(block_num):
+def fetch_traces(web3, block_num):
     data = []
     block = web3.eth.get_block(block_num, full_transactions=True)
     for tx in block['transactions']:
         trace_data = fetch_trace_data(tx.hash.hex())
         data.append(trace_data)
     return data
-
-def fetch_and_store_traces(start_block, end_block, batch_size, max_workers=10):
-    data = []
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(fetch_traces, block_num) for block_num in range(start_block, end_block + 1)]
-        for future in as_completed(futures):
-            data.extend(future.result())
-            if len(data) >= batch_size:
-                start_time = time.time()
-                delta_append('TRACES', data, 'TX_HASH')
-                end_time = time.time()
-                print(f"Time taken for batch of {batch_size} traces: {end_time - start_time:.2f} seconds")
-                data = []
-
-    if data:
-        delta_append('TRACES', data, 'TX_HASH')
-
-# Main function to fetch and store recent blocks
-def main():
-    latest_block = web3.eth.block_number
-
-    # Fetch the latest timestamps and block numbers from Snowflake
-    latest_tx_timestamp, latest_tx_block = fetch_latest_timestamp_and_block_number('TRANSACTIONS')
-    latest_log_timestamp, latest_log_block = fetch_latest_timestamp_and_block_number('LOGS')
-    latest_trace_timestamp, latest_trace_block = fetch_latest_timestamp_and_block_number('TRACES')
-
-    # Determine the start block based on the latest block number from Snowflake
-    start_block_tx = latest_tx_block + 1 if latest_tx_block else latest_block - 1
-    start_block_log = latest_log_block + 1 if latest_log_block else latest_block - 1
-    start_block_trace = latest_trace_block + 1 if latest_trace_block else latest_block - 1
-
-    batch_size = 1000  # Set the batch size to 10000 rows
-
-    # Fetch and store data in batches
-    fetch_and_store_transactions(start_block_tx, latest_block, batch_size)
-    fetch_and_store_logs(start_block_log, latest_block, batch_size)
-    fetch_and_store_traces(start_block_trace, latest_block, batch_size)
-
-    print("Data has been written to Snowflake tables.")
-
-if __name__ == "__main__":
-    main()
