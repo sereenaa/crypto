@@ -4,3 +4,9 @@ evm-trace
 boto3
 pandas
 snowflake-connector-python[pandas]
+maturin
+cryo
+os
+polars
+pyarrow
+python-dotenv

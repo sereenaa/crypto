@@ -1,5 +1,6 @@
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import cryo
 from datetime import datetime, timezone
 from evm_trace import TraceFrame, CallType, get_calltree_from_geth_trace
 import pandas as pd
@@ -7,6 +8,10 @@ import snowflake.connector
 from snowflake.connector.pandas_tools import write_pandas
 import time
 from web3 import HTTPProvider, Web3
+
+# Format long numbers with comma notation
+def format_number_with_commas(number):
+    return "{:,}".format(number)
 
 # Utility function to create a Snowflake connection
 def get_snowflake_connection(secret):
@@ -32,21 +37,9 @@ def fetch_latest_timestamp_and_block_number(secret, table_name):
     return result
 
 # Function to perform delta append using pandas to_sql
-def delta_append(secret, table_name, data, unique_key):
-    if not data:
-        return
-    
+def delta_append(secret, table_name, df):
     conn = get_snowflake_connection(secret)
     cursor = conn.cursor()
-    df = pd.DataFrame(data)
-
-    # Fetch existing unique keys
-    # existing_keys_query = f"SELECT DISTINCT({unique_key}) FROM {table_name}"
-    # cursor.execute(existing_keys_query)
-    # existing_keys = {row[0] for row in cursor.fetchall()}
-
-    # # Filter out existing data
-    # df = df[~df[unique_key].isin(existing_keys)]
 
     # Append new data using write_pandas
     if not df.empty:
@@ -98,7 +91,6 @@ def fetch_transactions(web3, block_num):
         })
     return data
 
-
 # Function to fetch logs
 def fetch_logs(web3, block_num):
     data = []
@@ -136,7 +128,6 @@ def fetch_logs(web3, block_num):
                 "BLOB_GAS_USED": None
             })
     return data
-
 
 # Function to fetch and process trace data
 def fetch_trace_data(web3, txn_hash):
@@ -201,3 +192,80 @@ def fetch_traces(web3, block_num):
         trace_data = fetch_trace_data(tx.hash.hex())
         data.append(trace_data)
     return data
+
+
+# Function to fetch and push transactions for a range of blocks using cryo
+def fetch_and_push_transactions_with_cryo(secret, rpc, start_block, end_block):
+    start_time = time.time()
+    block_data = cryo.collect(
+        "blocks", 
+        blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
+        rpc=rpc, 
+        output_format="pandas", 
+        hex=True, 
+        requests_per_second=25
+    )
+    tx_data = cryo.collect(
+        "txs", 
+        blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
+        rpc=rpc, 
+        output_format="pandas", 
+        hex=True, 
+        requests_per_second=25
+    )
+
+    merged_data = pd.merge(
+        block_data[['block_number', 'timestamp']],
+        tx_data,  
+        on='block_number', 
+        how='left'
+    )
+    
+    # Rename columns to match desired output
+    merged_data.rename(columns={
+        'timestamp': 'BLOCK_TIME',
+        'block_number': 'BLOCK_NUMBER',
+        'transaction_hash': 'TX_HASH',
+        'from_address': 'FROM_ADDRESS',
+        'to_address': 'TO_ADDRESS',
+        'value_string': 'VALUE',
+        'gas_limit': 'GAS_LIMIT',
+        'gas_price': 'GAS_PRICE',
+        'gas_used': 'GAS_USED',
+        'max_fee_per_gas': 'MAX_FEE_PER_GAS',
+        'max_priority_fee_per_gas': 'MAX_PRIORITY_FEE_PER_GAS',
+        'priority_fee_per_gas': 'PRIORITY_FEE_PER_GAS',
+        'effective_gas_price': 'EFFECTIVE_GAS_PRICE',
+        'gas_used_for_l1': 'GAS_USED_FOR_L1',
+        'l1_block_number': 'L1_BLOCK_NUMBER',
+        'nonce': 'NONCE',
+        'transaction_index': 'INDEX',
+        'success': 'SUCCESS',
+        'block_hash': 'BLOCK_HASH',
+        'transaction_type': 'TYPE',
+        'access_list': 'ACCESS_LIST',
+        'block_date': 'BLOCK_DATE',
+        'blob_versioned_hashes': 'BLOB_VERSIONED_HASHES',
+        'max_fee_per_blob_gas': 'MAX_FEE_PER_BLOB_GAS'
+    }, inplace=True)
+
+    # Specify the desired column order
+    column_order = [
+        'BLOCK_TIME', 'BLOCK_NUMBER', 'TX_HASH', 'FROM_ADDRESS', 'TO_ADDRESS', 
+        'VALUE', 'GAS_LIMIT', 'GAS_PRICE', 'GAS_USED', 'MAX_FEE_PER_GAS', 
+        'MAX_PRIORITY_FEE_PER_GAS', 'PRIORITY_FEE_PER_GAS', 'EFFECTIVE_GAS_PRICE', 
+        'GAS_USED_FOR_L1', 'L1_BLOCK_NUMBER', 'NONCE', 'INDEX', 'SUCCESS', 
+        'BLOCK_HASH', 'TYPE', 'ACCESS_LIST', 'BLOCK_DATE', 'BLOB_VERSIONED_HASHES', 
+        'MAX_FEE_PER_BLOB_GAS'
+    ]
+
+    # Add missing columns with NaN values
+    for col in column_order:
+        if col not in merged_data.columns:
+            merged_data[col] = None
+
+    # Reorder the DataFrame
+    df = merged_data[column_order]
+    end_time = time.time()
+    print(f"Time taken for batch of {end_block-start_block} blocks: {end_time - start_time:.2f} seconds")
+    delta_append(secret, 'TRANSACTIONS', df)
