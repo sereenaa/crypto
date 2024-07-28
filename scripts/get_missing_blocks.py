@@ -1,10 +1,13 @@
+
+from dotenv import load_dotenv
 import os
 from util import *
-from get_secret import get_secret
 secret = get_secret(user='notnotsez')
+
+load_dotenv()
 rpc = os.getenv("ETH_RPC")
 
-table = 'transactions'
+table = 'logs'
 
 conn = get_snowflake_connection(secret)
 query = f"""
