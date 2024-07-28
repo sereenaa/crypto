@@ -54,4 +54,4 @@ RUN pip install --no-cache-dir -r requirements.txt --verbose
 EXPOSE 80
 
 # Run main.py when the container launches
-CMD ["python", "fetch_and_store_transactions.py"]
+CMD ["python", "main.py"]

@@ -195,7 +195,7 @@ def fetch_and_push_transactions_with_cryo(secret, rpc, start_block, end_block):
         rpc=rpc, 
         output_format="pandas", 
         hex=True, 
-        requests_per_second=25
+        # requests_per_second=100
     )
     tx_data = cryo.collect(
         "txs", 
@@ -203,7 +203,7 @@ def fetch_and_push_transactions_with_cryo(secret, rpc, start_block, end_block):
         rpc=rpc, 
         output_format="pandas", 
         hex=True, 
-        requests_per_second=25
+        # requests_per_second=100
     )
 
     merged_data = pd.merge(
@@ -259,7 +259,7 @@ def fetch_and_push_transactions_with_cryo(secret, rpc, start_block, end_block):
     # Reorder the DataFrame
     df = merged_data[column_order]
     end_time = time.time()
-    print(f"Time taken for batch of {end_block-start_block} blocks: {end_time - start_time:.2f} seconds")
+    print(f"Time taken to fetch batch of {end_block-start_block} blocks from block {format_number_with_commas(start_block)} to block {format_number_with_commas(end_block)}: {end_time - start_time:.2f} seconds")
     delta_append(secret, 'TRANSACTIONS', df)
 # Function to fetch and push logs for a range of blocks using cryo
 def fetch_and_push_logs_with_cryo(secret, rpc, start_block, end_block):
@@ -270,11 +270,11 @@ def fetch_and_push_logs_with_cryo(secret, rpc, start_block, end_block):
         rpc=rpc, 
         output_format="pandas", 
         hex=True, 
-        requests_per_second=25
+        # requests_per_second=20
     )
     log_data.columns = log_data.columns.str.upper()
     end_time = time.time()
-    print(f"Time taken for batch of {end_block-start_block} blocks: {end_time - start_time:.2f} seconds")
+    print(f"Time taken to fetch batch of {end_block-start_block} blocks from block {format_number_with_commas(start_block)} to block {format_number_with_commas(end_block)}: {end_time - start_time:.2f} seconds")
     delta_append(secret, 'LOGS', log_data)
 # Function to fetch and push traces for a range of blocks using cryo
 def fetch_and_push_traces_with_cryo(secret, rpc, start_block, end_block):
@@ -285,7 +285,7 @@ def fetch_and_push_traces_with_cryo(secret, rpc, start_block, end_block):
         rpc=rpc, 
         output_format="pandas", 
         hex=True, 
-        requests_per_second=25
+        # requests_per_second=20
     )
 
     trace_data.rename(columns={
@@ -320,5 +320,5 @@ def fetch_and_push_traces_with_cryo(secret, rpc, start_block, end_block):
     df = trace_data[column_order]
 
     end_time = time.time()
-    print(f"Time taken for batch of {end_block-start_block} blocks: {end_time - start_time:.2f} seconds")
+    print(f"Time taken to fetch batch of {end_block-start_block} blocks from block {format_number_with_commas(start_block)} to block {format_number_with_commas(end_block)}: {end_time - start_time:.2f} seconds")
     delta_append(secret, 'TRACES', df)
