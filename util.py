@@ -93,51 +93,65 @@ def delta_append(secret, table_name, df):
 
 
 
+# Helper function to handle retries
+def fetch_with_retry(datatype, blocks, rpc, include_columns=[], retries=3, wait=5):
+    for attempt in range(retries):
+        try:
+            return cryo.collect(
+                datatype,
+                blocks=blocks,
+                rpc=rpc,
+                output_format="pandas",
+                hex=True,
+                requests_per_second=25,
+                max_retries=10, 
+                initial_backoff=1000,
+                include_columns=include_columns
+            )
+        except Exception as e:
+            if "Rate Limit Exceeded" in str(e):
+                print(f"Rate limit exceeded. Retrying in {wait} seconds...")
+                time.sleep(wait)
+            else:
+                raise e
+    raise Exception("Max retries reached")
+
+
+
 # Function to fetch and push transactions for a range of blocks using cryo
 def fetch_and_push_transactions_with_cryo(secret, rpc, start_block, end_block):
     try:
         start_time = time.time()
         
-        try:
-            block_data = cryo.collect(
-                "blocks", 
-                blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
-                rpc=rpc, 
-                output_format="pandas", 
-                hex=True, 
-                requests_per_second=100
-            )
-        except Exception as e:
-            print(f"Error fetching block data: {e}")
-            return
+        # try:
+        #     tx_data = cryo.collect(
+        #         "txs", 
+        #         blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
+        #         rpc=rpc, 
+        #         output_format="pandas", 
+        #         hex=True, 
+        #         requests_per_second=25,
+        #         max_retries=10, 
+        #         initial_backoff=1000
+        #     )
+        # except Exception as e:
+        #     print(f"Error fetching transaction data: {e}")
+        #     return
         
         try:
-            tx_data = cryo.collect(
+            tx_data = fetch_with_retry(
                 "txs", 
                 blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
-                rpc=rpc, 
-                output_format="pandas", 
-                hex=True, 
-                requests_per_second=100
+                rpc=rpc,
+                include_columns=['timestamp', 'block_number']
             )
         except Exception as e:
             print(f"Error fetching transaction data: {e}")
             return
         
         try:
-            merged_data = pd.merge(
-                block_data[['block_number', 'timestamp']],
-                tx_data,  
-                on='block_number', 
-                how='left'
-            )
-        except Exception as e:
-            print(f"Error merging data: {e}")
-            return
-        
-        try:
             # Rename columns to match desired output
-            merged_data.rename(columns={
+            tx_data.rename(columns={
                 'timestamp': 'BLOCK_TIME',
                 'block_number': 'BLOCK_NUMBER',
                 'transaction_hash': 'TX_HASH',
@@ -176,11 +190,11 @@ def fetch_and_push_transactions_with_cryo(secret, rpc, start_block, end_block):
 
             # Add missing columns with NaN values
             for col in column_order:
-                if col not in merged_data.columns:
-                    merged_data[col] = None
+                if col not in tx_data.columns:
+                    tx_data[col] = None
 
             # Reorder the DataFrame
-            df = merged_data[column_order]
+            df = tx_data[column_order]
         except Exception as e:
             print(f"Error processing data: {e}")
             return
@@ -202,17 +216,29 @@ def fetch_and_push_logs_with_cryo(secret, rpc, start_block, end_block):
     try:
         start_time = time.time()
         
+        # try:
+        #     log_data = cryo.collect(
+        #         "logs", 
+        #         blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
+        #         rpc=rpc, 
+        #         output_format="pandas", 
+        #         hex=True, 
+        #         requests_per_second=25, 
+        #         max_retries=10, 
+        #         initial_backoff=1000
+        #     )
+        # except Exception as e:
+        #     print(f"Error fetching log data: {e}")
+        #     return
+
         try:
-            log_data = cryo.collect(
+            log_data = fetch_with_retry(
                 "logs", 
                 blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
-                rpc=rpc, 
-                output_format="pandas", 
-                hex=True, 
-                requests_per_second=100
+                rpc=rpc,
             )
         except Exception as e:
-            print(f"Error fetching log data: {e}")
+            print(f"Error fetching transaction data: {e}")
             return
         
         try:

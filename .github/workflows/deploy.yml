@@ -2,8 +2,8 @@ name: Deploy to AWS ECR on Code Commit
 
 on:
   push:
-    branches:
-      # - pop-index-multi
+    branches-ignore:
+      - pop-index-multi
 
 jobs:
   build-and-push:
