@@ -3,7 +3,7 @@ name: Deploy to AWS ECR on Code Commit
 on:
   push:
     branches:
-      - pop-index-multi
+      # - pop-index-multi
 
 jobs:
   build-and-push:
