@@ -49,7 +49,7 @@ def main():
     #     batch_start += batch_size
 
     # Run all 3 fetch data loops simultaneously
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         batch_start_tx = start_block_tx
         batch_start_log = start_block_log
         batch_start_trace = start_block_trace
