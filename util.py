@@ -5,6 +5,7 @@ import cryo
 from datetime import datetime, timezone
 from evm_trace import TraceFrame, CallType, get_calltree_from_geth_trace
 import json
+import numpy as np
 import pandas as pd
 import snowflake.connector
 from snowflake.connector.pandas_tools import write_pandas
@@ -353,6 +354,18 @@ def decode_log(log):
         return decode_random_number_delivered(log, log_data)
     elif event_type == "BattlePending":
         return decode_battle_pending(log, log_data)
+    elif event_type == "RequestRandomNumber":
+        return decode_request_random_number(log, log_data)
+    elif event_type == "CountSet":
+        return decode_count_set(log, log_data)
+    elif event_type == "DungeonLootGranted":
+        return decode_dungeon_loot_granted(log, log_data)
+    elif event_type == "UpgradePirateLevel":
+        return decode_upgrade_pirate_level(log, log_data)
+    elif event_type == "ComponentValueRemoved":
+        return decode_component_type_removed(log, log_data)
+    elif event_type == "PerformGameItemAction": 
+        return decode_perform_game_item_action(log, log_data)
     else:
         return {"EVENT": "Unknown", "DATA": log}
 
@@ -377,7 +390,7 @@ def decode_transfer_single(log, log_data):
         "FROM": from_address,
         "TO": to_address,
         "ID": str(id),
-        "VALUE": value
+        "VALUE": str(value)
     }
 
 
@@ -419,8 +432,8 @@ def decode_trait_value_set(log, log_data):
         "LOG_INDEX": log_index,
         "EVENT": "TraitValueSet",
         "TOKEN_CONTRACT": token_contract,
-        "TOKEN_ID": token_id,
-        "TRAIT_ID": trait_id,
+        "TOKEN_ID": str(token_id),
+        "TRAIT_ID": str(trait_id),
         "DATA": "0x" + data
     }
 
@@ -441,7 +454,7 @@ def decode_transfer(log, log_data):
         "EVENT": "Transfer",
         "FROM": from_address,
         "TO": to_address,
-        "VALUE": value
+        "VALUE": str(value)
     }
 
 
@@ -463,11 +476,11 @@ def decode_pirate_transform_completed(log, log_data):
         "LOG_INDEX": log_index,
         "EVENT": "PirateTransformCompleted",
         "ACCOUNT": account,
-        "TRANSFORM_ENTITY": transform_entity,
-        "STARTED_COUNT": started_count,
-        "SUCCESS_COUNT": success_count,
+        "TRANSFORM_ENTITY": str(transform_entity),
+        "STARTED_COUNT": str(started_count),
+        "SUCCESS_COUNT": str(success_count),
         "NFT_TOKEN_CONTRACT": nft_token_contract,
-        "NFT_TOKEN_ID": nft_token_id
+        "NFT_TOKEN_ID": str(nft_token_id)
     }
 
 
@@ -484,7 +497,7 @@ def decode_random_number_delivered(log, log_data):
         "TRANSACTION_HASH": transaction_hash,
         "LOG_INDEX": log_index,
         "EVENT": "RandomNumberDelivered",
-        "REQUEST_ID": request_id,
+        "REQUEST_ID": str(request_id),
         "NUMBER": str(number),
     }
 
@@ -528,6 +541,145 @@ def decode_battle_pending(log, log_data):
         "DEFENDER_ENTITY": str(defender_entity),
         "ATTACKER_OVERLOADS": str(attacker_overloads),
         "DEFENDER_OVERLOADS": str(defender_overloads)
+    }
+
+
+
+def decode_request_random_number(log, log_data):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+    request_id = int(log['TOPIC1'], 16)
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "RequestRandomNumber",
+        "REQUEST_ID": str(request_id)
+    }
+
+
+
+def decode_count_set(log, log_data):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+    
+    # Decode the data part
+    data_bytes = bytes.fromhex(log_data)
+    entity = int.from_bytes(data_bytes[0:32], byteorder='big')
+    key = int.from_bytes(data_bytes[32:64], byteorder='big')
+    new_total = int.from_bytes(data_bytes[64:96], byteorder='big')
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "CountSet",
+        "ENTITY": str(entity),
+        "KEY": str(key),
+        "NEW_TOTAL": str(new_total)
+    }
+
+
+
+def decode_dungeon_loot_granted(log, log_data):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+    
+    account = log['TOPIC1']
+
+    battle_entity = int(log['TOPIC2'], 16)
+    
+    # Decode the data part
+    data_bytes = bytes.fromhex(log_data)
+    # account = '0x' + data_bytes[12:32].hex()
+    scheduled_start_timestamp = int.from_bytes(data_bytes[0:32], byteorder='big')
+    map_entity = int.from_bytes(data_bytes[32:64], byteorder='big')
+    node = int.from_bytes(data_bytes[64:96], byteorder='big')
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "DungeonLootGranted",
+        "ACCOUNT": account,
+        "BATTLE_ENTITY": str(battle_entity),
+        "SCHEDULED_START_TIMESTAMP": str(scheduled_start_timestamp),
+        "MAP_ENTITY": str(map_entity),
+        "NODE": str(node)
+    }
+
+
+
+def decode_upgrade_pirate_level(log, log_data):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+    
+    token_contract = log['TOPIC1']
+    token_id = int(log['TOPIC2'], 16)
+    
+    # Decode the data part
+    data_bytes = bytes.fromhex(log_data)
+    new_level = int.from_bytes(data_bytes[0:32], byteorder='big')
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "UpgradePirateLevel",
+        "TOKEN_CONTRACT": token_contract,
+        "TOKEN_ID": str(token_id),
+        "NEW_LEVEL": str(new_level)
+    }
+
+
+
+def decode_component_type_removed(log, log_data):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+    
+    component_id = int(log['TOPIC1'], 16)
+    entity = int(log['TOPIC2'], 16)
+    
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "ComponentValueRemoved",
+        "COMPONENT_ID": str(component_id),
+        "ENTITY": str(entity)
+    }
+
+
+
+def decode_perform_game_item_action(log, log_data):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+    
+    # Decode the data part
+    data_bytes = bytes.fromhex(log_data)
+    account = '0x' + data_bytes[12:32].hex()
+    token_contract = '0x' + data_bytes[44:64].hex()
+    token_id = int.from_bytes(data_bytes[64:96], byteorder='big')
+    amount = int.from_bytes(data_bytes[96:128], byteorder='big')
+    action_id = int.from_bytes(data_bytes[128:160], byteorder='big')
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "PerformGameItemAction",
+        "ACCOUNT": account,
+        "TOKEN_CONTRACT": token_contract,
+        "TOKEN_ID": str(token_id),
+        "AMOUNT": str(amount),
+        "ACTION_ID": str(action_id)
     }
 
 
@@ -600,7 +752,15 @@ def transform_logs(secret):
                 "ATTACKER_ENTITY", 
                 "DEFENDER_ENTITY", 
                 "ATTACKER_OVERLOADS", 
-                "DEFENDER_OVERLOADS"
+                "DEFENDER_OVERLOADS", 
+                "KEY",
+                "NEW_TOTAL",
+                "SCHEDULED_START_TIMESTAMP",
+                "MAP_ENTITY",
+                "NODE",
+                "NEW_LEVEL",
+                "AMOUNT",
+                "ACTION_ID",
             ]
             
             # Reorder the DataFrame columns
