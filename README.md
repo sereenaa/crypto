@@ -1,2 +1,2 @@
-# crypto
-stuff for web3
+# Proof of Play 
+Indexing task for Peter
