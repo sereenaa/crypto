@@ -32,7 +32,7 @@ if platform.system() == 'Windows':
     log_filename = os.path.join(logs_folder, f'log_{current_datetime}.log')
 
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler(log_filename),
