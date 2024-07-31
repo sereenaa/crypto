@@ -1,12 +1,15 @@
 
-import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 import os
 import time
 from web3 import Web3
+import argparse
+import platform
+import logging
+from datetime import datetime
 
-from util import *
+from utils.util import *
+from utils.cryo_fetch import *
 
 # Load environment variables from .env file
 load_dotenv()
@@ -21,9 +24,34 @@ secret = get_secret(user='notnotsez')
 rpc_url = 'https://rpc.apex.proofofplay.com'
 web3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 30}))
 
+# Configure logging if running on Windows
+if platform.system() == 'Windows':
+    logs_folder = 'logs'
+    os.makedirs(logs_folder, exist_ok=True)
+    current_datetime = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    log_filename = os.path.join(logs_folder, f'log_{current_datetime}.log')
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_filename),
+            logging.StreamHandler()
+        ]
+    )
+
+logger = logging.getLogger(__name__)
+
+def fetch_and_push_data(data_type, secret, rpc, start_block, end_block):
+    if data_type == 'transactions':
+        fetch_and_push_transactions_with_cryo(secret, rpc, start_block, end_block)
+    elif data_type == 'logs':
+        fetch_and_push_logs_with_cryo(secret, rpc, start_block, end_block)
+    else:
+        raise ValueError("Invalid data type. Must be either 'transactions' or 'logs'.")
 
 # Main function to fetch and store recent blocks
-def main():
+def main(data_type):
     try:
         start_time = time.time()
 
@@ -31,51 +59,44 @@ def main():
 
         # Fetch the latest timestamps and block numbers from Snowflake
         try:
-            latest_tx_block = fetch_latest_block_number(secret, 'TRANSACTIONS')
-            latest_log_block = fetch_latest_block_number(secret, 'LOGS')
-            latest_trace_block = fetch_latest_block_number(secret, 'TRACES')
+            latest_block_number = fetch_latest_block_number(secret, data_type.upper())
         except Exception as e:
-            print(f"Error fetching latest block numbers from Snowflake: {e}")
+            error_msg = f"Error fetching latest block numbers from Snowflake: {e}"
+            print(error_msg)
+            if platform.system() == 'Windows':
+                logger.error(error_msg)
             return
 
         # Determine the start block based on the latest block number from Snowflake
-        start_block_tx = latest_tx_block + 1 if latest_tx_block else latest_block
-        start_block_log = latest_log_block + 1 if latest_log_block else latest_block
-        start_block_trace = latest_trace_block + 1 if latest_trace_block else latest_block
-
+        start_block = latest_block_number + 1 if latest_block_number else latest_block
         batch_size = 100  # Set the batch size to 100 blocks
 
-        # Run all 3 fetch data loops simultaneously
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            batch_start_tx = start_block_tx
-            batch_start_log = start_block_log
-            batch_start_trace = start_block_trace
-            while batch_start_tx < latest_block or batch_start_log < latest_block:
-                futures = []
-                if batch_start_tx < latest_block:
-                    batch_end_tx = min(batch_start_tx + batch_size, latest_block)
-                    futures.append(executor.submit(fetch_and_push_transactions_with_cryo, secret, rpc, batch_start_tx, batch_end_tx))
-                    batch_start_tx += batch_size
-                if batch_start_log < latest_block:
-                    batch_end_log = min(batch_start_log + batch_size, latest_block)
-                    futures.append(executor.submit(fetch_and_push_logs_with_cryo, secret, rpc, batch_start_log, batch_end_log))
-                    batch_start_log += batch_size
-                # if batch_start_trace < latest_block:
-                #     batch_end_trace = min(batch_start_trace + batch_size, latest_block)
-                #     futures.append(executor.submit(fetch_and_push_traces_with_cryo, secret, rpc, batch_start_trace, batch_end_trace))
-                #     batch_start_trace += batch_size
-
-                # Wait for all tasks to complete
-                for future in concurrent.futures.as_completed(futures):
-                    try:
-                        future.result()
-                    except Exception as e:
-                        print(f"Error in one of the futures: {e}")
+        # Run fetch data loop
+        batch_start = start_block
+        while batch_start < latest_block:
+            batch_end = min(batch_start + batch_size, latest_block)
+            try:
+                fetch_and_push_data(data_type, secret, rpc, batch_start, batch_end)
+            except Exception as e:
+                error_msg = f"Error fetching or pushing data for blocks {batch_start} to {batch_end}: {e}"
+                print(error_msg)
+                if platform.system() == 'Windows':
+                    logger.error(error_msg)
+            batch_start += batch_size
 
         end_time = time.time()
-        print(f"Transaction and log data for blocks {format_number_with_commas(start_block_tx)} to {format_number_with_commas(latest_block)} written to Snowflake in {end_time - start_time:.2f} seconds.")
+        success_msg = f"{data_type.capitalize()} data for blocks {format_number_with_commas(start_block)} to {format_number_with_commas(latest_block)} written to Snowflake in {end_time - start_time:.2f} seconds."
+        print(success_msg)
+        if platform.system() == 'Windows':
+            logger.info(success_msg)
     except Exception as e:
-        print(f"Unexpected error in main function: {e}")
+        error_msg = f"Unexpected error in main function: {e}"
+        print(error_msg)
+        if platform.system() == 'Windows':
+            logger.error(error_msg)
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='Fetch and store blockchain data.')
+    parser.add_argument('data_type', choices=['transactions', 'logs'], help='The type of data to fetch and store (transactions or logs).')
+    args = parser.parse_args()
+    main(args.data_type)

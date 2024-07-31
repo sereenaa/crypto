@@ -1,333 +1,16 @@
 
-import boto3
-from botocore.exceptions import ClientError
-import cryo
-from datetime import datetime, timezone
-from evm_trace import TraceFrame, CallType, get_calltree_from_geth_trace
-import json
-import numpy as np
 import pandas as pd
-import snowflake.connector
-from snowflake.connector.pandas_tools import write_pandas
-import time
 
 from config.logs_decode_mapping import *
-
-# Get secret from AWS Secret Manager
-def get_secret(user='notnotsez'):
-
-    secret_name = f'snowflake-user-{user}'
-
-    region_name = "ap-southeast-2"
-
-    # Create a Secrets Manager client
-    session = boto3.session.Session()
-    client = session.client(
-        service_name='secretsmanager',
-        region_name=region_name
-    )
-
-    try:
-        get_secret_value_response = client.get_secret_value(
-            SecretId=secret_name
-        )
-    except ClientError as e:
-        # For a list of exceptions thrown, see
-        # https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
-        raise e
-
-    # Decrypts secret using the associated KMS key.
-    secret = json.loads(get_secret_value_response['SecretString'])
-
-    return secret
-
-
-
-# Format long numbers with comma notation
-def format_number_with_commas(number):
-    return "{:,}".format(number)
-
-
-
-# Utility function to create a Snowflake connection
-def get_snowflake_connection(secret):
-    return snowflake.connector.connect(
-        user=secret['user'],
-        password=secret['password'],
-        account=secret['account'],
-        warehouse=secret['warehouse'],
-        database='PROOFOFPLAY',
-        schema='RAW',
-        login_timeout=30  # Increase the timeout for login
-    )
-
-
-
-# Fetch the latest timestamp and block number from the Snowflake table
-def fetch_latest_block_number(secret, table_name):
-    conn = get_snowflake_connection(secret)
-    query = f"SELECT MAX(block_number) AS max_block FROM {table_name}"
-    cursor = conn.cursor()
-    cursor.execute(query)
-    result = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return result[0]
-
-
-
-# Function to perform delta append using pandas to_sql
-def delta_append(secret, table_name, df):
-    conn = get_snowflake_connection(secret)
-    cursor = conn.cursor()
-
-    # Append new data using write_pandas
-    if not df.empty:
-        success, nchunks, nrows, _ = write_pandas(conn, df, table_name)
-        if success:
-            print(f"Inserted {nrows} rows into {table_name}")
-        else:
-            print(f"Failed to insert data into {table_name}")
-
-    cursor.close()
-    conn.close()
-
-
-
-# Helper function to handle retries
-def fetch_with_retry(datatype, blocks, rpc, include_columns=[], retries=3, wait=5):
-    for attempt in range(retries):
-        try:
-            return cryo.collect(
-                datatype,
-                blocks=blocks,
-                rpc=rpc,
-                output_format="pandas",
-                hex=True,
-                requests_per_second=25,
-                max_retries=10, 
-                initial_backoff=1000,
-                include_columns=include_columns
-            )
-        except Exception as e:
-            if "Rate Limit Exceeded" in str(e):
-                print(f"Rate limit exceeded. Retrying in {wait} seconds...")
-                time.sleep(wait)
-            else:
-                raise e
-    raise Exception("Max retries reached")
-
-
-
-# Function to fetch and push transactions for a range of blocks using cryo
-def fetch_and_push_transactions_with_cryo(secret, rpc, start_block, end_block):
-    try:
-        start_time = time.time()
-        
-        # try:
-        #     tx_data = cryo.collect(
-        #         "txs", 
-        #         blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
-        #         rpc=rpc, 
-        #         output_format="pandas", 
-        #         hex=True, 
-        #         requests_per_second=25,
-        #         max_retries=10, 
-        #         initial_backoff=1000
-        #     )
-        # except Exception as e:
-        #     print(f"Error fetching transaction data: {e}")
-        #     return
-        
-        try:
-            tx_data = fetch_with_retry(
-                "txs", 
-                blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
-                rpc=rpc,
-                include_columns=['timestamp', 'block_number']
-            )
-        except Exception as e:
-            print(f"Error fetching transaction data: {e}")
-            return
-        
-        try:
-            # Rename columns to match desired output
-            tx_data.rename(columns={
-                'timestamp': 'BLOCK_TIME',
-                'block_number': 'BLOCK_NUMBER',
-                'transaction_hash': 'TX_HASH',
-                'from_address': 'FROM_ADDRESS',
-                'to_address': 'TO_ADDRESS',
-                'value_string': 'VALUE',
-                'gas_limit': 'GAS_LIMIT',
-                'gas_price': 'GAS_PRICE',
-                'gas_used': 'GAS_USED',
-                'max_fee_per_gas': 'MAX_FEE_PER_GAS',
-                'max_priority_fee_per_gas': 'MAX_PRIORITY_FEE_PER_GAS',
-                'priority_fee_per_gas': 'PRIORITY_FEE_PER_GAS',
-                'effective_gas_price': 'EFFECTIVE_GAS_PRICE',
-                'gas_used_for_l1': 'GAS_USED_FOR_L1',
-                'l1_block_number': 'L1_BLOCK_NUMBER',
-                'nonce': 'NONCE',
-                'transaction_index': 'INDEX',
-                'success': 'SUCCESS',
-                'block_hash': 'BLOCK_HASH',
-                'transaction_type': 'TYPE',
-                'access_list': 'ACCESS_LIST',
-                'block_date': 'BLOCK_DATE',
-                'blob_versioned_hashes': 'BLOB_VERSIONED_HASHES',
-                'max_fee_per_blob_gas': 'MAX_FEE_PER_BLOB_GAS'
-            }, inplace=True)
-            
-            # Specify the desired column order
-            column_order = [
-                'BLOCK_TIME', 'BLOCK_NUMBER', 'TX_HASH', 'FROM_ADDRESS', 'TO_ADDRESS', 
-                'VALUE', 'GAS_LIMIT', 'GAS_PRICE', 'GAS_USED', 'MAX_FEE_PER_GAS', 
-                'MAX_PRIORITY_FEE_PER_GAS', 'PRIORITY_FEE_PER_GAS', 'EFFECTIVE_GAS_PRICE', 
-                'GAS_USED_FOR_L1', 'L1_BLOCK_NUMBER', 'NONCE', 'INDEX', 'SUCCESS', 
-                'BLOCK_HASH', 'TYPE', 'ACCESS_LIST', 'BLOCK_DATE', 'BLOB_VERSIONED_HASHES', 
-                'MAX_FEE_PER_BLOB_GAS'
-            ]
-
-            # Add missing columns with NaN values
-            for col in column_order:
-                if col not in tx_data.columns:
-                    tx_data[col] = None
-
-            # Reorder the DataFrame
-            df = tx_data[column_order]
-        except Exception as e:
-            print(f"Error processing data: {e}")
-            return
-
-        end_time = time.time()
-        print(f"Time taken to fetch batch of {end_block-start_block} blocks from block {format_number_with_commas(start_block)} to block {format_number_with_commas(end_block)}: {end_time - start_time:.2f} seconds")
-        
-        try:
-            delta_append(secret, 'TRANSACTIONS', df)
-        except Exception as e:
-            print(f"Error appending data to Delta Lake: {e}")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-
-
-
-# Function to fetch and push logs for a range of blocks using cryo
-def fetch_and_push_logs_with_cryo(secret, rpc, start_block, end_block):
-    try:
-        start_time = time.time()
-        
-        # try:
-        #     log_data = cryo.collect(
-        #         "logs", 
-        #         blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
-        #         rpc=rpc, 
-        #         output_format="pandas", 
-        #         hex=True, 
-        #         requests_per_second=25, 
-        #         max_retries=10, 
-        #         initial_backoff=1000
-        #     )
-        # except Exception as e:
-        #     print(f"Error fetching log data: {e}")
-        #     return
-
-        try:
-            log_data = fetch_with_retry(
-                "logs", 
-                blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
-                rpc=rpc,
-            )
-        except Exception as e:
-            print(f"Error fetching transaction data: {e}")
-            return
-        
-        try:
-            log_data.columns = log_data.columns.str.upper()
-        except Exception as e:
-            print(f"Error processing log data columns: {e}")
-            return
-        
-        end_time = time.time()
-        print(f"Time taken to fetch batch of {end_block-start_block} blocks from block {format_number_with_commas(start_block)} to block {format_number_with_commas(end_block)}: {end_time - start_time:.2f} seconds")
-        
-        try:
-            delta_append(secret, 'LOGS', log_data)
-        except Exception as e:
-            print(f"Error appending data to Delta Lake: {e}")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-
-
-
-# Function to fetch and push traces for a range of blocks using cryo
-def fetch_and_push_traces_with_cryo(secret, rpc, start_block, end_block):
-    try:
-        start_time = time.time()
-        
-        try:
-            trace_data = cryo.collect(
-                "geth_calls", 
-                blocks=[f"{start_block}:{end_block}"], # includes the first block but not the last 
-                rpc=rpc, 
-                output_format="pandas", 
-                hex=True, 
-                # requests_per_second=20
-            )
-        except Exception as e:
-            print(f"Error fetching trace data: {e}")
-            return
-        
-        try:
-            trace_data.rename(columns={
-                'block_number': 'BLOCK_NUMBER',
-                'transaction_hash': 'TX_HASH',
-                'transaction_index': 'TX_INDEX',
-                'from_address': 'FROM_ADDRESS',
-                'to_address': 'TO_ADDRESS',
-                'value_string': 'VALUE',
-                'gas_string': 'GAS_PRICE',
-                'gas_used_string': 'GAS_USED',
-                'error': 'ERROR',
-                'trace_address': 'TRACE_ADDRESS',
-                'typ': 'TYPE',
-                'input': 'INPUT', 
-                'output': 'OUTPUT'
-            }, inplace=True)
-
-            # Specify the desired column order
-            column_order = [
-                'BLOCK_NUMBER', 'TX_HASH', 'TX_INDEX', 'FROM_ADDRESS', 'TO_ADDRESS', 
-                'VALUE', 'GAS_PRICE', 'GAS_USED', 'ERROR', 'TRACE_ADDRESS', 'TYPE', 
-                'INPUT', 'OUTPUT'
-            ]
-
-            # Add missing columns with NaN values
-            for col in column_order:
-                if col not in trace_data.columns:
-                    trace_data[col] = None
-
-            # Reorder the DataFrame
-            df = trace_data[column_order]
-        except Exception as e:
-            print(f"Error processing trace data: {e}")
-            return
-
-        end_time = time.time()
-        print(f"Time taken to fetch batch of {end_block-start_block} blocks from block {format_number_with_commas(start_block)} to block {format_number_with_commas(end_block)}: {end_time - start_time:.2f} seconds")
-        
-        try:
-            delta_append(secret, 'TRACES', df)
-        except Exception as e:
-            print(f"Error appending data to Delta Lake: {e}")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-
-
+from utils.util import *
+from utils.cryo_fetch import *
 
 # Function to decode logs based on the event type
 def decode_log(log):
     topic_0 = log['TOPIC0']
+    topic_1 = log['TOPIC1']
+    topic_2 = log['TOPIC2']
+    topic_3 = log['TOPIC3']
     if topic_0 not in event_hashes:
         return {
             "BLOCK_NUMBER": log['BLOCK_NUMBER'],
@@ -366,6 +49,24 @@ def decode_log(log):
         return decode_component_type_removed(log, log_data)
     elif event_type == "PerformGameItemAction": 
         return decode_perform_game_item_action(log, log_data)
+    elif event_type == "OperatorRegistered":
+        return decode_operator_registered(log, log_data)
+    elif event_type == "Approval":
+        return decode_approval(log, log_data,  topic_1, topic_2)
+    elif event_type == "FundsForwardedWithData":
+        return decode_funds_forwarded_with_data(log, log_data)
+    elif event_type == "MilestoneClaimed":
+        return decode_milestone_claimed(log, log_data, topic_1, topic_2, topic_3)
+    elif event_type == "ApprovalForAll":
+        return decode_approve_for_all(log, log_data, topic_1, topic_2)
+    elif event_type == "TransferBatch":
+        return decode_transfer_batch(log, log_data, topic_1,  topic_2, topic_3)
+    elif event_type == "TicketCreated":
+        return decode_ticket_created(log, log_data, topic_1)
+    elif event_type == "RedeemScheduled":
+        return decode_redeem_scheduled(log, log_data, topic_1, topic_2, topic_3)
+    elif event_type == "L2ToL1Tx":
+        return decode_l2_to_l1_tx(log, log_data, topic_1, topic_2, topic_3)
     else:
         return {"EVENT": "Unknown", "DATA": log}
 
@@ -684,6 +385,208 @@ def decode_perform_game_item_action(log, log_data):
 
 
 
+def decode_operator_registered(log, log_data):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+    
+    # Decode the data part
+    data_bytes = bytes.fromhex(log_data[2:])  # Remove '0x' prefix and convert to bytes
+    player = '0x' + data_bytes[11:31].hex()
+    operator = '0x' + data_bytes[43:63].hex()
+    expiration = int.from_bytes(data_bytes[64:96], byteorder='big')
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "OperatorRegistered",
+        "PLAYER": player,
+        "OPERATOR": operator,
+        "EXPIRATION": str(expiration)
+    }
+
+
+
+def decode_approval(log, log_data, topic_1, topic_2):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+
+    # Decode the data part
+    data_bytes = bytes.fromhex(log_data[2:])  # Remove '0x' prefix and convert to bytes
+    value = int.from_bytes(data_bytes[-32:], byteorder='big')
+
+    # Decode the topics
+    owner = '0x' + topic_1[26:]
+    spender = '0x' + topic_2[26:]
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "Approval",
+        "OWNER": owner,
+        "SPENDER": spender,
+        "VALUE": str(value)
+    }
+
+
+
+def decode_funds_forwarded_with_data(log, log_data):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+
+    # Decode the data part
+    data_bytes = bytes.fromhex(log_data[2:])  # Remove '0x' prefix and convert to bytes
+    data = data_bytes[63:67].hex()
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "FundsForwardedWithData",
+        "DATA": "0x" + data
+    }
+
+
+
+def decode_milestone_claimed(log, log_data, topic_1, topic_2, topic_3):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+
+    # Decode the data part
+    data_bytes = bytes.fromhex(log_data[2:])  # Remove '0x' prefix and convert to bytes
+    milestone_index = int.from_bytes(data_bytes[-2:], byteorder='big')
+
+    # Decode the topics
+    owner = '0x' + topic_1[26:]
+    token_contract = '0x' + topic_2[26:]
+    token_id = int(topic_3, 16)
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "MilestoneClaimed",
+        "OWNER": owner,
+        "TOKEN_CONTRACT": token_contract,
+        "TOKEN_ID": str(token_id),
+        "MILESTONE_INDEX": str(milestone_index)
+    }
+
+
+def decode_approve_for_all(log, log_data, topic_1, topic_2):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+
+    # Decode the data part
+    data_bytes = bytes.fromhex(log_data[2:])  # Remove '0x' prefix and convert to bytes
+    approved = bool(int.from_bytes(data_bytes[-1:], byteorder='big'))
+
+    # Decode the topics
+    account = '0x' + topic_1[26:]
+    operator = '0x' + topic_2[26:]
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "ApprovalForAll",
+        "ACCOUNT": account,
+        "OPERATOR": operator,
+        "APPROVED": approved
+    }
+
+
+
+def decode_transfer_batch(log, log_data, topic_1,  topic_2, topic_3):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+
+    # Decode the topics
+    operator = '0x' + topic_1[26:]
+    from_address = '0x' + topic_2[26:]
+    to_address = '0x' + topic_3[26:]
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "TransferBatch",
+        "OPERATOR": operator,
+        "FROM": from_address,
+        "TO": to_address,
+    }
+
+
+
+
+def decode_ticket_created(log, log_data, topic_1):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+
+    # Decode the topics
+    ticket_id = '0x' + topic_1[2:]
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "TicketCreated",
+        "TICKET_ID": ticket_id
+    }
+
+
+
+def decode_redeem_scheduled(log, log_data, topic_1, topic_2, topic_3):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+
+    # Decode the topics
+    ticket_id = '0x' + topic_1[2:]
+    retry_tx_hash = '0x' + topic_2[2:]
+    sequence_num = int(topic_3, 16)
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "RedeemScheduled",
+        "TICKET_ID": ticket_id,
+        "RETRY_TX_HASH": retry_tx_hash,
+        "SEQUENCE_NUM": str(sequence_num),
+    }
+
+
+
+def decode_l2_to_l1_tx(log, log_data, topic_1, topic_2, topic_3):
+    block_number = log['BLOCK_NUMBER']
+    transaction_hash = log['TRANSACTION_HASH']
+    log_index = log['LOG_INDEX']
+
+    # Decode the topics
+    destination = '0x' + topic_1[26:]
+    hash_value = int(topic_2, 16)
+    position = int(topic_3, 16)
+
+    return {
+        "BLOCK_NUMBER": block_number,
+        "TRANSACTION_HASH": transaction_hash,
+        "LOG_INDEX": log_index,
+        "EVENT": "L2ToL1Tx",
+        "DESTINATION": destination,
+        "HASH": str(hash_value),
+        "POSITION": str(position),
+    }
+
+
 def transform_logs(secret):
     try:
         table_name = 'LOGS_DECODED'
@@ -761,6 +664,18 @@ def transform_logs(secret):
                 "NEW_LEVEL",
                 "AMOUNT",
                 "ACTION_ID",
+                "PLAYER", 
+                "EXPIRATION", 
+                "OWNER",
+                "SPENDER",
+                "MILESTONE_INDEX",
+                "APPROVED", # bool
+                "TICKET_ID",
+                "RETRY_TX_HASH",
+                "SEQUENCE_NUM",
+                "DESTINATION",
+                "HASH",
+                "POSITION",
             ]
             
             # Reorder the DataFrame columns

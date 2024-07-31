@@ -2,7 +2,7 @@
 
 import pandas as pd
 from web3 import Web3
-from util import * 
+from utils.logs_decode import * 
 
 # Connect to a Web3 provider
 w3 = Web3(Web3.HTTPProvider('https://rpc.apex.proofofplay.com'))
@@ -44,8 +44,9 @@ def get_log(block_num, tx_hash, log_index):
 
 
 
-block_num = 28383732
-
+block_num = 28459423
+tx_hash = '0xb72c178cf5cf0e8e4e49d3308a555969d2da1f0bf0551d433f18519eb8fcfa5e'
+log_index = 0
 
 # Decode all logs
 results_df = get_logs(block_num)
@@ -56,9 +57,14 @@ unknown_df = decoded_logs_df[decoded_logs_df['EVENT'] == 'Unknown']
 
 tx_hash = unknown_df.iloc[0]['TRANSACTION_HASH']
 log_index = unknown_df.iloc[0]['LOG_INDEX']
+
 single_log_df = get_log(block_num, tx_hash, log_index)
 log = single_log_df.to_dict(orient='records')[0]
 log_data = log['DATA'][2:]
+topic_0 = log['TOPIC0']
+topic_1 = log['TOPIC1']
+topic_2 = log['TOPIC2']
+topic_3 = log['TOPIC3']
 
 decoded_single_log = [decode_log(log) for log in single_log_df.to_dict(orient='records')]
 

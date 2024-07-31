@@ -1,7 +1,10 @@
 
 from dotenv import load_dotenv
 import os
-from util import *
+
+from utils.util import *
+from utils.cryo_fetch import *
+
 secret = get_secret(user='notnotsez')
 
 load_dotenv()

@@ -14,6 +14,16 @@ event_signatures = {
     "UpgradePirateLevel(address indexed tokenContract, uint256 indexed tokenId, uint256 newLevel)": "UpgradePirateLevel",
     "ComponentValueRemoved(uint256 indexed componentId, uint256 indexed entity)": "ComponentValueRemoved", 
     "PerformGameItemAction(address account, address tokenContract, uint256 tokenId, uint256 amount, uint256 actionId)": "PerformGameItemAction",
+    "OperatorRegistered(address player, address operator, uint256 expiration)": "OperatorRegistered",
+    "Approval(address indexed owner, address indexed spender, uint256 value)": "Approval",
+    "FundsForwardedWithData(bytes data)": "FundsForwardedWithData",
+    "MilestoneClaimed(address indexed owner, address indexed tokenContract, uint256 indexed tokenId, uint16 milestoneIndex)": "MilestoneClaimed",
+    "ApprovalForAll(address indexed account, address indexed operator, bool approved)": "ApprovalForAll",
+    "TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)": "TransferBatch",
+    "TicketCreated(bytes32 indexed ticketId)": "TicketCreated",
+    "RedeemScheduled(bytes32 indexed ticketId, bytes32 indexed retryTxHash, uint64 indexed sequenceNum, uint64 donatedGas, address gasDonor, uint256 maxRefund, uint256 submissionFeeRefund)": "RedeemScheduled",
+    "L2ToL1Tx(address caller, address indexed destination, uint256 indexed hash, uint256 indexed position, uint256 arbBlockNum, uint256 ethBlockNum, uint256 timestamp, uint256 callvalue, bytes data)": "L2ToL1Tx",
+
 }
 
 
@@ -32,5 +42,14 @@ event_hashes = {
     '0xfdeeaf66101caa3b9381f67b2283c02a2ce9bb45fbe01599bc502ecf3cd65dcb': "UpgradePirateLevel",
     '0x8989859870cc0d47cc5f8909459290e411f855f5535f7dbfaf1038cf40fccc0e': "ComponentValueRemoved",
     '0x2f6a39e9fc9144751ab2648c46e182b869a591ded4a2b760b8c8b8b179cf6aa7': "PerformGameItemAction",
+    '0xdcb4af7d57cc106724f816a55242fbe9d45d800af6a574cb2814d7adf23e4940': "OperatorRegistered",
+    '0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925': "Approval",
+    '0x936c2ca3b35d2d0b24057b0675c459e4515f48fe132d138e213ae59ffab7f53e': "FundsForwardedWithData",
+    '0x64a2520a3172591ba4c28cd708e827177ac26751856d91bce26e1e2adcd6100a': "MilestoneClaimed",
+    '0x17307eab39ab6107e8899845ad3d59bd9653f200f220920489ca2b5937696c31': "ApprovalForAll",
+    '0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb': "TransferBatch",
+    '0x7c793cced5743dc5f531bbe2bfb5a9fa3f40adef29231e6ab165c08a29e3dd89': "TicketCreated",
+    '0x5ccd009502509cf28762c67858994d85b163bb6e451f5e9df7c5e18c9c2e123e': "RedeemScheduled",
+    '0x3e7aafa77dbf186b7fd488006beff893744caa3c4f6f299e8a709fa2087374fc': "L2ToL1Tx",
 }
 
