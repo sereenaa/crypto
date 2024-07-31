@@ -3,7 +3,7 @@ name: Deploy to AWS ECR on Code Commit
 on:
   push:
     branches-ignore:
-      - pop-index-multi
+      - pop-indexing
 
 jobs:
   build-and-push:
@@ -34,7 +34,7 @@ jobs:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: proof-of-play
       run: |
-        tag=${{ github.ref == 'refs/heads/pop-index-multi' && 'multi-latest' || 'latest' }}
+        tag=${{ github.ref == 'refs/heads/pop-indexing' && 'pop-indexing-latest' || 'latest' }}
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$tag .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$tag
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$tag" >> $GITHUB_ENV
@@ -43,4 +43,4 @@ jobs:
       id: register_task
       run: |
         aws ecs register-task-definition --cli-input-json file://ecs-task-definition.json
-        aws ecs describe-task-definition --task-definition proof-of-play-multi
+        aws ecs describe-task-definition --task-definition proof-of-play
