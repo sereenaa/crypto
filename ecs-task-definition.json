@@ -1,0 +1,33 @@
+
+{
+  "family": "arb-opcodes",
+  "networkMode": "awsvpc",
+  "containerDefinitions": [
+    {
+      "name": "arb-opcodes",
+      "image": "021891576629.dkr.ecr.ap-southeast-2.amazonaws.com/arb-opcodes:arb-opcodes-latest",
+      "essential": true,
+      "memory": 16384,
+      "cpu": 4096,
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "hostPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/arb-opcodes",
+          "awslogs-region": "ap-southeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ],
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "4096",
+  "memory": "16384",
+  "executionRoleArn": "arn:aws:iam::021891576629:role/ecsTaskExecutionRole"
+}

@@ -49,7 +49,7 @@ def get_snowflake_connection(secret, schema):
         password=secret['password'],
         account=secret['account'],
         warehouse=secret['warehouse'],
-        database='PROOFOFPLAY',
+        database='ARBITRUM_NOVA',
         schema=schema,
         login_timeout=30  # Increase the timeout for login
     )
@@ -57,8 +57,8 @@ def get_snowflake_connection(secret, schema):
 
 
 # Fetch the latest timestamp and block number from the Snowflake table
-def fetch_latest_block_number(secret, database, table_name):
-    conn = get_snowflake_connection(secret, database)
+def fetch_latest_block_number(secret, schema, table_name):
+    conn = get_snowflake_connection(secret, schema)
     query = f"SELECT MAX(block_number) AS max_block FROM {table_name}"
     cursor = conn.cursor()
     cursor.execute(query)
