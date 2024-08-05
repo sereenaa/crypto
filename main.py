@@ -43,25 +43,33 @@ logger = logging.getLogger(__name__)
 
 
 # Main function to fetch and store recent blocks
-def main():
+def main(run_strategy, start_block=None, latest_block=None):
     try:
         start_time = time.time()
 
-        latest_block = web3.eth.block_number
+        if run_strategy == 'default':
+            latest_block = web3.eth.block_number
 
-        # Fetch the latest timestamps and block numbers from Snowflake
-        try:
-            latest_block_number = fetch_latest_block_number(secret, 'STAGING', 'OPCODES')
-        except Exception as e:
-            error_msg = f"Error fetching latest block numbers from Snowflake: {e}"
-            print(error_msg)
-            if platform.system() == 'Windows':
-                logger.error(error_msg)
-            return
+            # Fetch the latest timestamps and block numbers from Snowflake
+            try:
+                latest_block_number = fetch_latest_block_number(secret, 'STAGING', 'OPCODES')
+            except Exception as e:
+                error_msg = f"Error fetching latest block numbers from Snowflake: {e}"
+                print(error_msg)
+                if platform.system() == 'Windows':
+                    logger.error(error_msg)
+                return
 
-        # Determine the start block based on the latest block number from Snowflake
-        start_block = latest_block_number + 1 if latest_block_number else latest_block
-        
+            # Determine the start block based on the latest block number from Snowflake
+            start_block = latest_block_number + 1 if latest_block_number else latest_block
+
+        elif run_strategy == 'historical':
+            print('Run strategy: historical')
+            latest_block = latest_block
+            print('latest block:', str(latest_block))
+            start_block = start_block
+            print('start block:', str(start_block))
+
         block_number = start_block
         while block_number < latest_block:
             try:
@@ -85,4 +93,9 @@ def main():
             logger.error(error_msg)
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='Fetch and store blockchain data.')
+    parser.add_argument('run_strategy', choices=['default', 'historical'], help='The run strategy for this run. Choose default to load data for a daily load, historical for chunking historical blocks into batches for faster processing and multiple invocations of this script.')
+    parser.add_argument('start_block', type=int, help='The start block for this run.')
+    parser.add_argument('latest_block', type=int, help='The end block for this run.')
+    args = parser.parse_args()
+    main(args.run_strategy, args.start_block, args.latest_block)
