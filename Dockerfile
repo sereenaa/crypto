@@ -7,7 +7,15 @@ WORKDIR /app
 # Copy the current directory contents into the container at /app
 COPY . /app
 
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libssl-dev \
+    libffi-dev \
+    unixodbc-dev
+
 # Install any needed packages specified in requirements.txt
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt 
 
 # Copy the shell script into the container
