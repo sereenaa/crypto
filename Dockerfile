@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . /app
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt --verbose
+RUN pip install -r requirements.txt 
 
 # Copy the shell script into the container
 COPY run_scripts.sh /app/run_scripts.sh
