@@ -3,7 +3,7 @@ name: Deploy to AWS ECR on Code Commit
 on:
   push:
     branches:
-      - pop-indexing
+      - arb-opcodes
 
 jobs:
   build-and-push:
