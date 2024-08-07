@@ -16,9 +16,11 @@ load_dotenv()
 
 # Retrieve the Ethereum RPC URL from environment variables
 rpc_url = os.getenv("RPC_URL")
+if not rpc_url:
+    raise ValueError("RPC_URL is not set. Please check your .env file.")
 
 # Snowflake connection details
-secret = get_secret(user='notnotsez')
+secret = get_secret(user='notnotsez-peter')
 
 # Connect to the blockchain RPC endpoint
 web3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 30}))
@@ -43,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 # Main function to fetch and store recent blocks
-def main(run_strategy, start_block=None, latest_block=None):
+def main(run_strategy, start_block=None, end_block=None, block_range=200):
     try:
         start_time = time.time()
 
@@ -65,24 +67,34 @@ def main(run_strategy, start_block=None, latest_block=None):
 
         elif run_strategy == 'historical':
             print('Run strategy: historical')
-            latest_block = latest_block
-            print('latest block:', str(latest_block))
-            start_block = start_block
+            range_end_block = start_block + block_range
+            print('end block:', str(end_block))
             print('start block:', str(start_block))
 
-        block_number = start_block
-        while block_number < latest_block:
+        range_start_block = start_block
+        # while block_number < latest_block:
+        #     try:
+        #         fetch_and_push_raw_opcodes(secret, rpc_url, block_number)
+        #     except Exception as e:
+        #         error_msg = f"Error fetching or pushing data for block {block_number}: {e}"
+        #         print(error_msg)
+        #         if platform.system() == 'Windows':
+        #             logger.error(error_msg)
+        #     block_number += 1
+
+        while range_end_block <= end_block:
             try:
-                fetch_and_push_raw_opcodes(secret, rpc_url, block_number)
+                fetch_and_push_raw_opcodes_for_block_range(secret, 'OPCODES_TEST', rpc_url, range_start_block, range_end_block)
             except Exception as e:
-                error_msg = f"Error fetching or pushing data for block {block_number}: {e}"
+                error_msg = f"Error fetching or pushing data for block range {format_number_with_commas(range_start_block)}-{format_number_with_commas(range_end_block)}: {e}"
                 print(error_msg)
                 if platform.system() == 'Windows':
                     logger.error(error_msg)
-            block_number += 1
+            range_start_block += block_range
+            range_end_block += block_range
 
         end_time = time.time()
-        success_msg = f"OPCODES data for blocks {format_number_with_commas(start_block)} to {format_number_with_commas(latest_block)} written to Snowflake in {end_time - start_time:.2f} seconds."
+        success_msg = f"OPCODES data for blocks {format_number_with_commas(start_block)} to {format_number_with_commas(end_block)} written to Snowflake in {end_time - start_time:.2f} seconds."
         print(success_msg)
         if platform.system() == 'Windows':
             logger.info(success_msg)
@@ -96,6 +108,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Fetch and store blockchain data.')
     parser.add_argument('run_strategy', choices=['default', 'historical'], help='The run strategy for this run. Choose default to load data for a daily load, historical for chunking historical blocks into batches for faster processing and multiple invocations of this script.')
     parser.add_argument('start_block', type=int, help='The start block for this run.')
-    parser.add_argument('latest_block', type=int, help='The end block for this run.')
+    parser.add_argument('end_block', type=int, help='The end block for this run.')
     args = parser.parse_args()
-    main(args.run_strategy, args.start_block, args.latest_block)
+    main(args.run_strategy, args.start_block, args.end_block)
