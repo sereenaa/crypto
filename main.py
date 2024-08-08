@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 # Main function to fetch and store recent blocks
-def main(run_strategy, start_block=None, end_block=None, batch_size=200):
+def main(run_strategy, start_block=None, end_block=None, batch_size=100):
     try:
         start_time = time.time()
 
@@ -86,7 +86,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=200):
             range_end_block = min(range_start_block + batch_size, latest_block)
             print(f"Processing blocks {str(range_start_block)} to {str(range_end_block)}...")
             try:
-                fetch_and_push_raw_opcodes_for_block_range(secret, 'OPCODES_TEST', rpc_url, range_start_block, range_end_block)
+                fetch_and_push_raw_opcodes_for_block_range(secret, 'OPCODES', rpc_url, range_start_block, range_end_block)
             except Exception as e:
                 error_msg = f"Error fetching or pushing data for block range {format_number_with_commas(range_start_block)}-{format_number_with_commas(range_end_block)}: {e}"
                 print(error_msg)

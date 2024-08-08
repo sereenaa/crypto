@@ -6,7 +6,7 @@ from os import cpu_count
 import pandas as pd
 import requests 
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from requests.exceptions import RequestException
 
 
@@ -181,7 +181,7 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, star
     # Fetch block traces using ThreadPoolExecutor
     start_time = time.time()
     traces = []
-    with ThreadPoolExecutor(max_workers=num_cpus) as executor:
+    with ThreadPoolExecutor(max_workers=num_cpus*5) as executor:
         future_to_block = {executor.submit(get_block_trace_and_block_number, rpc_url, block): block for block in blocks}
         for future in as_completed(future_to_block):
             try:
@@ -193,9 +193,19 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, star
     print(f"Time taken to fetch traces for {str(end_block-start_block)} blocks: {end_time - start_time:.2f} seconds")
 
 
-    # Process block traces and concatenate into a single DataFrame
+    # # Process block traces and concatenate into a single DataFrame using ProcessPoolExecutor
+    # start_time = time.time()
+    # with ProcessPoolExecutor(max_workers=num_cpus) as executor:
+    #     future_to_trace = {executor.submit(process_block_trace, trace): trace for trace in traces}
+    #     dataframes = [future.result() for future in as_completed(future_to_trace)]
+    # df = pd.concat(dataframes, ignore_index=True)
+    # end_time = time.time()
+    # print(f"Time taken to process block traces for {str(end_block-start_block)} blocks: {end_time - start_time:.2f} seconds")
+
+
+    # Process block traces and concatenate into a single DataFrame using ThreadPoolExecutor (this seems to be faster than ProcessPoolExecutor)
     start_time = time.time()
-    with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
+    with ThreadPoolExecutor(max_workers=num_cpus*5) as executor:
         future_to_trace = {executor.submit(process_block_trace, trace): trace for trace in traces}
         dataframes = [future.result() for future in as_completed(future_to_trace)]
     df = pd.concat(dataframes, ignore_index=True)
