@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 # Main function to fetch and store recent blocks
-def main(run_strategy, start_block=None, end_block=None, block_range=200):
+def main(run_strategy, start_block=None, end_block=None, batch_size=200):
     try:
         start_time = time.time()
 
@@ -66,10 +66,10 @@ def main(run_strategy, start_block=None, end_block=None, block_range=200):
             start_block = latest_block_number + 1 if latest_block_number else latest_block
 
         elif run_strategy == 'historical':
+            latest_block = end_block
             print('Run strategy: historical')
-            range_end_block = start_block + block_range
-            print('end block:', str(end_block))
             print('start block:', str(start_block))
+            print('end block:', str(end_block))
 
         range_start_block = start_block
         # while block_number < latest_block:
@@ -82,7 +82,9 @@ def main(run_strategy, start_block=None, end_block=None, block_range=200):
         #             logger.error(error_msg)
         #     block_number += 1
 
-        while range_end_block <= end_block:
+        while range_start_block < end_block:
+            range_end_block = min(range_start_block + batch_size, latest_block)
+            print(f"Processing blocks {str(range_start_block)} to {str(range_end_block)}...")
             try:
                 fetch_and_push_raw_opcodes_for_block_range(secret, 'OPCODES_TEST', rpc_url, range_start_block, range_end_block)
             except Exception as e:
@@ -90,8 +92,7 @@ def main(run_strategy, start_block=None, end_block=None, block_range=200):
                 print(error_msg)
                 if platform.system() == 'Windows':
                     logger.error(error_msg)
-            range_start_block += block_range
-            range_end_block += block_range
+            range_start_block += batch_size
 
         end_time = time.time()
         success_msg = f"OPCODES data for blocks {format_number_with_commas(start_block)} to {format_number_with_commas(end_block)} written to Snowflake in {end_time - start_time:.2f} seconds."

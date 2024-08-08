@@ -188,9 +188,9 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, star
                 trace, block_number = future.result()
                 traces.append((trace, block_number))
             except Exception as e:
-                print(f"Error fetching block trace for block {block_number}: {e}")
+                print(f"Error fetching traces for block {block_number}: {e}")
     end_time = time.time()
-    print(f"Time taken to fetch block traces for {str(end_block-start_block)} blocks: {end_time - start_time:.2f} seconds")
+    print(f"Time taken to fetch traces for {str(end_block-start_block)} blocks: {end_time - start_time:.2f} seconds")
 
 
     # Process block traces and concatenate into a single DataFrame
