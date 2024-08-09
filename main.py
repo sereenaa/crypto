@@ -51,10 +51,12 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100):
 
         if run_strategy == 'default':
             latest_block = web3.eth.block_number
+            print(f"Latest current block number: {str(latest_block)}")
 
             # Fetch the latest timestamps and block numbers from Snowflake
             try:
                 latest_block_number = fetch_latest_block_number(secret, 'STAGING', 'OPCODES')
+                print(f"Latest block number from Snowflake: {str(latest_block_number)}")
             except Exception as e:
                 error_msg = f"Error fetching latest block numbers from Snowflake: {e}"
                 print(error_msg)

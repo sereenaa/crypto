@@ -26,6 +26,7 @@ def get_block_trace(rpc_url, block_number):
         "id": 1
     }
     response = requests.post(rpc_url, json=payload)
+    print(response.json()['result'][0]['result']['structLogs'])
     return response.json()
 
 
