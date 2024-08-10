@@ -14,16 +14,9 @@ from utils.process_data import *
 # Load environment variables from .env file
 load_dotenv()
 
-# Retrieve the Ethereum RPC URL from environment variables
-rpc_url = os.getenv("RPC_URL")
-if not rpc_url:
-    raise ValueError("RPC_URL is not set. Please check your .env file.")
-
 # Snowflake connection details
 secret = get_secret(user='notnotsez-peter')
-
-# Connect to the blockchain RPC endpoint
-web3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 30}))
+table_name = os.getenv("TABLE_NAME")
 
 # Configure logging if running on Windows
 if platform.system() == 'Windows':
@@ -45,7 +38,16 @@ logger = logging.getLogger(__name__)
 
 
 # Main function to fetch and store recent blocks
-def main(run_strategy, start_block=None, end_block=None, batch_size=100):
+def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_number=0):
+
+    # Retrieve the Ethereum RPC URL from environment variables
+    rpc_url = os.getenv(f"RPC_URL_{rpc_number}")
+    if not rpc_url:
+        raise ValueError(f"RPC_URL_{rpc_number} is not set. Please check your .env file.")
+
+    # Connect to the blockchain RPC endpoint
+    web3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 30}))
+
     try:
         start_time = time.time()
 
@@ -55,8 +57,8 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100):
 
             # Fetch the latest timestamps and block numbers from Snowflake
             try:
-                latest_block_number = fetch_latest_block_number(secret, 'STAGING', 'OPCODES')
-                print(f"Latest block number from Snowflake: {str(latest_block_number)}")
+                latest_snowflake_block_number = fetch_latest_block_number(secret, 'STAGING', table_name)
+                print(f"Latest block number from Snowflake: {str(latest_snowflake_block_number)}")
             except Exception as e:
                 error_msg = f"Error fetching latest block numbers from Snowflake: {e}"
                 print(error_msg)
@@ -65,7 +67,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100):
                 return
 
             # Determine the start block based on the latest block number from Snowflake
-            start_block = latest_block_number + 1 if latest_block_number else latest_block
+            start_block = latest_snowflake_block_number + 1 if latest_snowflake_block_number else latest_block
 
         elif run_strategy == 'historical':
             latest_block = end_block
@@ -84,11 +86,11 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100):
         #             logger.error(error_msg)
         #     block_number += 1
 
-        while range_start_block < end_block:
+        while range_start_block < latest_block:
             range_end_block = min(range_start_block + batch_size, latest_block)
             print(f"Processing blocks {str(range_start_block)} to {str(range_end_block)}...")
             try:
-                fetch_and_push_raw_opcodes_for_block_range(secret, 'OPCODES', rpc_url, range_start_block, range_end_block)
+                fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, range_start_block, range_end_block)
             except Exception as e:
                 error_msg = f"Error fetching or pushing data for block range {format_number_with_commas(range_start_block)}-{format_number_with_commas(range_end_block)}: {e}"
                 print(error_msg)
@@ -110,7 +112,9 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Fetch and store blockchain data.')
     parser.add_argument('run_strategy', choices=['default', 'historical'], help='The run strategy for this run. Choose default to load data for a daily load, historical for chunking historical blocks into batches for faster processing and multiple invocations of this script.')
-    parser.add_argument('start_block', type=int, help='The start block for this run.')
-    parser.add_argument('end_block', type=int, help='The end block for this run.')
+    parser.add_argument('start_block', type=int, help='The start block for this run (inclusive of this block).')
+    parser.add_argument('end_block', type=int, help='The end block for this run (not inclusive of this block).')
+    parser.add_argument('batch_size', type=int, help='The number of blocks to process in one iteration of the the loop.')
+    parser.add_argument('rpc_number', type=int, help='The rpc url to use for this run from .env')
     args = parser.parse_args()
-    main(args.run_strategy, args.start_block, args.end_block)
+    main(args.run_strategy, args.start_block, args.end_block, args.batch_size, args.rpc_number)
