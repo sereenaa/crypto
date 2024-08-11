@@ -236,13 +236,13 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, star
 
 
     # Uncomment the following lines to append the data to Snowflake
-    try:
-        start_time = time.time()
-        delta_append(secret, table_name, merged_df)
-        end_time = time.time()
-        print(f"Time taken to append {str(end_block-start_block)} blocks to Snowflake: {end_time - start_time:.2f} seconds")
-    except Exception as e:
-        print(f"Error appending data to Delta Lake: {e}")
+    # try:
+    #     start_time = time.time()
+    #     delta_append(secret, table_name, merged_df)
+    #     end_time = time.time()
+    #     print(f"Time taken to append {str(end_block-start_block)} blocks to Snowflake: {end_time - start_time:.2f} seconds")
+    # except Exception as e:
+    #     print(f"Error appending data to Delta Lake: {e}")
 
 # Example usage
 # fetch_and_push_raw_opcodes(secret, rpc_url, start_block, start_block + 99)
