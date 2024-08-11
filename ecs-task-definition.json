@@ -1,4 +1,3 @@
-
 {
   "family": "arb-opcodes",
   "networkMode": "awsvpc",
@@ -7,8 +6,8 @@
       "name": "arb-opcodes",
       "image": "796973488332.dkr.ecr.ap-southeast-2.amazonaws.com/arb-opcodes:arb-opcodes-latest",
       "essential": true,
-      "memory": 16384,
-      "cpu": 4096,
+      "memory": 49152,
+      "cpu": 12288,
       "portMappings": [
         {
           "containerPort": 80,
@@ -28,7 +27,7 @@
     }
   ],
   "requiresCompatibilities": ["FARGATE"],
-  "cpu": "4096",
-  "memory": "16384",
+  "cpu": "12288",
+  "memory": "49152",
   "executionRoleArn": "arn:aws:iam::796973488332:role/ecsTaskExecutionRole"
 }
