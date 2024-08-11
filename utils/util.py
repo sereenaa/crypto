@@ -5,6 +5,7 @@ import json
 import snowflake.connector
 from snowflake.connector.pandas_tools import write_pandas
 
+from config.logger_config import logger  # Import the logger
 
 # Get secret from AWS Secret Manager
 def get_secret(user='notnotsez'):
@@ -35,11 +36,9 @@ def get_secret(user='notnotsez'):
     return secret
 
 
-
 # Format long numbers with comma notation
 def format_number_with_commas(number):
     return "{:,}".format(number)
-
 
 
 # Utility function to create a Snowflake connection
@@ -55,7 +54,6 @@ def get_snowflake_connection(secret, schema):
     )
 
 
-
 # Fetch the latest timestamp and block number from the Snowflake table
 def fetch_latest_block_number(secret, schema, table_name):
     conn = get_snowflake_connection(secret, schema)
@@ -68,7 +66,6 @@ def fetch_latest_block_number(secret, schema, table_name):
     return result[0]
 
 
-
 # Function to perform delta append using pandas to_sql
 def delta_append(secret, table_name, df):
     conn = get_snowflake_connection(secret, 'STAGING')
@@ -78,9 +75,9 @@ def delta_append(secret, table_name, df):
     if not df.empty:
         success, nchunks, nrows, _ = write_pandas(conn, df, table_name)
         if success:
-            print(f"Inserted {nrows} rows into {table_name}")
+            logger.info(f"Inserted {nrows} rows into {table_name}")
         else:
-            print(f"Failed to insert data into {table_name}")
+            logger.info(f"Failed to insert data into {table_name}")
 
     cursor.close()
     conn.close()

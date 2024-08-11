@@ -12,11 +12,12 @@ RUN apt-get update && apt-get install -y \
     gcc \
     libssl-dev \
     libffi-dev \
-    unixodbc-dev
+    unixodbc-dev \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt 
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Copy the shell script into the container
 COPY run_scripts.sh /app/run_scripts.sh

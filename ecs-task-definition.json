@@ -5,7 +5,7 @@
   "containerDefinitions": [
     {
       "name": "arb-opcodes",
-      "image": "021891576629.dkr.ecr.ap-southeast-2.amazonaws.com/arb-opcodes:arb-opcodes-latest",
+      "image": "796973488332.dkr.ecr.ap-southeast-2.amazonaws.com/arb-opcodes:arb-opcodes-latest",
       "essential": true,
       "memory": 16384,
       "cpu": 4096,
@@ -29,5 +29,5 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "4096",
   "memory": "16384",
-  "executionRoleArn": "arn:aws:iam::021891576629:role/ecsTaskExecutionRole"
+  "executionRoleArn": "arn:aws:iam::796973488332:role/ecsTaskExecutionRole"
 }
