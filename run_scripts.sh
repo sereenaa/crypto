@@ -4,11 +4,11 @@
 # python main.py default &
 
 # Fetch the historical data with multi processing 
-python main.py historical 53294400 55057990 100 1 &
-python main.py historical 55057990 56819482 100 2 &
-python main.py historical 56821282 58580974 100 3 &
-python main.py historical 58588974 60342466 100 4 &
-python main.py historical 60342666 62103959 100 5 &
+python main.py historical 53469300 55057990 100 1 &
+python main.py historical 55226490 56819482 100 2 &
+python main.py historical 56887982 58580974 100 3 &
+python main.py historical 58720574 60342466 100 4 &
+python main.py historical 60345566 62103959 100 5 &
 
 # Wait for all background processes to finish
 wait
