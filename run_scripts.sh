@@ -12,6 +12,3 @@ python main.py historical 60345566 62103959 100 5 &
 
 # Wait for all background processes to finish
 wait
-
-
-# 53296497 (latest block) 

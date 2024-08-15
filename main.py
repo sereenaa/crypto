@@ -73,7 +73,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
             reprocess = False
             range_end_block = min(range_start_block + batch_size, latest_block)
             current_block_range = (range_start_block, range_end_block)
-            logger.info(f"Processing blocks {range_start_block} to {range_end_block}...")
+            logger.info(f"Processing blocks {range_start_block} to {range_end_block} with rpc {rpc_number}...")
 
             try:
                 blocks_list = list(range(range_start_block, range_end_block))
