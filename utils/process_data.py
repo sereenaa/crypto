@@ -9,7 +9,9 @@ import time
 
 from utils.util import *
 from config.logger_config import logger  # Import the logger
-from globals import global_failed_blocks_list_prev, global_failed_blocks_list_curr
+
+# from globals import global_failed_blocks_list_prev, global_failed_blocks_list_curr
+from globals import global_failed_blocks_queue_curr 
 
 # Function to get block trace
 def get_block_trace(rpc_url, block_number):
@@ -39,18 +41,20 @@ def get_block_trace_and_block_number(rpc_url, block_number, retries=2):
     try:
         for attempt in range(retries):
             try:
-                response = requests.post(rpc_url, json=payload)
+                response = requests.post(rpc_url, json=payload, timeout=20)
                 response.raise_for_status()
                 return response.json(), block_number
             except (RequestException, json.JSONDecodeError) as e:
-                logger.error(f"Attempt {attempt + 1}/{retries} failed for block {block_number}: {e}")
+                logger.error(f"Attempt {attempt + 1}/{retries} failed for block {block_number}: {e} with rpc {rpc_url}")
                 if attempt < retries - 1:
                     time.sleep(2 ** attempt)  # Exponential backoff
                 else:
                     raise # re-raise the last caught exception, to move the control flow to the outer except block
     except Exception as e:
-        global_failed_blocks_list_curr.append(block_number)
-        logger.info(f"Global failed blocks retry list: {global_failed_blocks_list_curr}")
+        # global_failed_blocks_list_curr.append(block_number)
+        global_failed_blocks_queue_curr.put(block_number)
+        # logger.info(f"Global failed blocks retry list: {global_failed_blocks_list_curr}")
+        logger.info(f"Global failed blocks retry list size: {global_failed_blocks_queue_curr.qsize()}")
         return None, block_number
 
 
@@ -99,20 +103,25 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, bloc
     # Fetch block traces using ThreadPoolExecutor
     start_time = time.time()
     traces = []
-    with ThreadPoolExecutor(max_workers=num_cpus*3) as executor:
+    with ThreadPoolExecutor(max_workers=num_cpus*2) as executor:
         future_to_block = {executor.submit(get_block_trace_and_block_number, rpc_url, block): block for block in blocks_list}
         for future in as_completed(future_to_block):
-            trace, block_number = future.result()
-            # traces.append((trace, block_number))
-            if trace is not None:  # Check if trace is not None before appending
-                traces.append((trace, block_number))
+            try:
+                trace, block_number = future.result(timeout=20)
+                # traces.append((trace, block_number))
+                if trace is not None:  # Check if trace is not None before appending
+                    traces.append((trace, block_number))
+            except TimeoutError:
+                logger.error(f"TimeoutError for block {future_to_block[future]}")
+            except Exception as e:
+                logger.error(f"Exception occurred for block {future_to_block[future]}: {e}")
     end_time = time.time()
     logger.info(f"Time taken to fetch traces for {str(len(blocks_list))} blocks: {end_time - start_time:.2f} seconds")
 
 
     # Process block traces and concatenate into a single DataFrame using ThreadPoolExecutor (this seems to be faster than ProcessPoolExecutor)
     start_time = time.time()
-    with ThreadPoolExecutor(max_workers=num_cpus*3) as executor:
+    with ThreadPoolExecutor(max_workers=num_cpus*2) as executor:
         future_to_trace = {executor.submit(process_block_trace, trace): trace for trace in traces}
         dataframes = [future.result() for future in as_completed(future_to_trace)]
     df = pd.concat(dataframes, ignore_index=True)
