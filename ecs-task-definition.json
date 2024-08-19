@@ -7,7 +7,7 @@
       "image": "796973488332.dkr.ecr.ap-southeast-2.amazonaws.com/arb-opcodes:arb-opcodes-latest",
       "essential": true,
       "memory": 65536,
-      "cpu": 16384,
+      "cpu": 8192,
       "portMappings": [
         {
           "containerPort": 80,
@@ -27,7 +27,7 @@
     }
   ],
   "requiresCompatibilities": ["FARGATE"],
-  "cpu": "16384",
+  "cpu": "8192",
   "memory": "65536",
   "executionRoleArn": "arn:aws:iam::796973488332:role/ecsTaskExecutionRole"
 }

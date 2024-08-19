@@ -32,6 +32,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
 
     # Retrieve the Ethereum RPC URL from environment variables
     rpc_url = os.getenv(f"RPC_URL_{rpc_number}")
+    logger.info(f"RPC number {rpc_number}: {rpc_url}")
     if not rpc_url:
         raise ValueError(f"RPC_URL_{rpc_number} is not set. Please check your .env file.")
 
@@ -119,7 +120,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
         #     logger.error(error_msg)
 
         # Log the contents of the failed blocks queue
-        logger.info(f"Global failed blocks retry list size: {global_failed_blocks_queue_curr.qsize()}")
+        logger.info(f"Global failed blocks retry list size for rpc {rpc_number}: {global_failed_blocks_queue_curr.qsize()}")
         
         # Move items from the current queue to the previous queue
         while not global_failed_blocks_queue_curr.empty():
@@ -137,7 +138,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
                 error_msg = f"Error fetching or pushing data for failed blocks retry list: {e}"
                 logger.error(error_msg)
         else:
-            error_msg = f"Global failed blocks retry list too large. Something has gone wrong. Please investigate!!"
+            error_msg = f"Global failed blocks retry list too large for rpc {rpc_number}. Something has gone wrong. Please investigate!!"
             logger.error(error_msg)
 
 
