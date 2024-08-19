@@ -6,7 +6,7 @@
       "name": "arb-opcodes",
       "image": "796973488332.dkr.ecr.ap-southeast-2.amazonaws.com/arb-opcodes:arb-opcodes-latest",
       "essential": true,
-      "memory": 65536,
+      "memory": 61440,
       "cpu": 8192,
       "portMappings": [
         {
@@ -28,6 +28,6 @@
   ],
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "8192",
-  "memory": "65536",
+  "memory": "61440",
   "executionRoleArn": "arn:aws:iam::796973488332:role/ecsTaskExecutionRole"
 }
