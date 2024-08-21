@@ -28,7 +28,7 @@ def get_block_trace(rpc_url, block_number):
 
 # Function to get block trace
 # Reducing the retries will improve overall performance as it won't hold up the other threads
-def get_block_trace_and_block_number(rpc_url, block_number, retries=2):
+def get_block_trace_and_block_number(rpc_url, rpc_number, block_number, retries=2):
 
     payload = {
         "jsonrpc": "2.0",
@@ -41,11 +41,11 @@ def get_block_trace_and_block_number(rpc_url, block_number, retries=2):
     try:
         for attempt in range(retries):
             try:
-                response = requests.post(rpc_url, json=payload, timeout=20)
+                response = requests.post(rpc_url, json=payload, timeout=50)
                 response.raise_for_status()
                 return response.json(), block_number
-            except (RequestException, json.JSONDecodeError) as e:
-                logger.error(f"Attempt {attempt + 1}/{retries} failed for block {block_number}: {e} with rpc {rpc_url}")
+            except (RequestException, json.JSONDecodeError, requests.exceptions.Timeout) as e:
+                logger.error(f"Attempt {attempt + 1}/{retries} failed for block {block_number}: {e} - with rpc {rpc_number}")
                 if attempt < retries - 1:
                     time.sleep(2 ** attempt)  # Exponential backoff
                 else:
@@ -54,7 +54,7 @@ def get_block_trace_and_block_number(rpc_url, block_number, retries=2):
         # global_failed_blocks_list_curr.append(block_number)
         global_failed_blocks_queue_curr.put(block_number)
         # logger.info(f"Global failed blocks retry list: {global_failed_blocks_list_curr}")
-        logger.info(f"Global failed blocks retry list size: {global_failed_blocks_queue_curr.qsize()}")
+        logger.info(f"Global failed blocks retry list size for rpc {rpc_number}: {global_failed_blocks_queue_curr.qsize()}")
         return None, block_number
 
 
@@ -96,7 +96,7 @@ def process_block_trace(trace_data):
 
 # Fetch and push opcodes transformed df to Snowflake for a range of blocks 
 # The range of blocks is inclusive of start_block but not including end_block
-def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, blocks_list):
+def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_number, blocks_list):
     num_cpus = cpu_count()
     logger.info(f"Number of CPUs available: {num_cpus}")
 
@@ -104,19 +104,19 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, bloc
     start_time = time.time()
     traces = []
     with ThreadPoolExecutor(max_workers=num_cpus*2) as executor:
-        future_to_block = {executor.submit(get_block_trace_and_block_number, rpc_url, block): block for block in blocks_list}
+        future_to_block = {executor.submit(get_block_trace_and_block_number, rpc_url, rpc_number, block): block for block in blocks_list}
         for future in as_completed(future_to_block):
             try:
-                trace, block_number = future.result(timeout=20)
+                trace, block_number = future.result(timeout=120)
                 # traces.append((trace, block_number))
                 if trace is not None:  # Check if trace is not None before appending
                     traces.append((trace, block_number))
             except TimeoutError:
-                logger.error(f"TimeoutError for block {future_to_block[future]}")
+                logger.error(f"TimeoutError for block {future_to_block[future]} with rpc {rpc_number}")
             except Exception as e:
-                logger.error(f"Exception occurred for block {future_to_block[future]}: {e}")
+                logger.error(f"Exception occurred for block {future_to_block[future]} with rpc {rpc_number}: {e}")
     end_time = time.time()
-    logger.info(f"Time taken to fetch traces for {str(len(blocks_list))} blocks: {end_time - start_time:.2f} seconds")
+    logger.info(f"Time taken to fetch traces for {str(len(blocks_list))} blocks with rpc {rpc_number}: {end_time - start_time:.2f} seconds")
 
 
     # Process block traces and concatenate into a single DataFrame using ThreadPoolExecutor (this seems to be faster than ProcessPoolExecutor)
@@ -126,7 +126,7 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, bloc
         dataframes = [future.result() for future in as_completed(future_to_trace)]
     df = pd.concat(dataframes, ignore_index=True)
     end_time = time.time()
-    logger.info(f"Time taken to process block traces for {str(len(blocks_list))} blocks: {end_time - start_time:.2f} seconds")
+    logger.info(f"Time taken to process block traces for {str(len(blocks_list))} blocks for rpc {rpc_number}: {end_time - start_time:.2f} seconds")
 
 
     # First aggregation level: Aggregate by TRANSACTION_HASH to get MAX_GAS and MIN_GAS
@@ -147,7 +147,7 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, bloc
     merged_df = pd.merge(transaction_agg, opcode_agg, on=['BLOCK_NUMBER', 'TRANSACTION_HASH'])
 
     end_time = time.time()
-    logger.info(f"Time taken to perform transformations on {str(len(blocks_list))} blocks: {end_time - start_time:.2f} seconds")
+    logger.info(f"Time taken to perform transformations on {str(len(blocks_list))} blocks for rpc {rpc_number}: {end_time - start_time:.2f} seconds")
 
 
     # Uncomment the following lines to append the data to Snowflake
@@ -155,6 +155,6 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, bloc
         start_time = time.time()
         delta_append(secret, table_name, merged_df)
         end_time = time.time()
-        logger.info(f"Time taken to append {str(len(blocks_list))} blocks to Snowflake: {end_time - start_time:.2f} seconds")
+        logger.info(f"Time taken to append {str(len(blocks_list))} blocks to Snowflake for rpc {rpc_number}: {end_time - start_time:.2f} seconds")
     except Exception as e:
-        logger.info(f"Error appending data to Delta Lake: {e}")
+        logger.info(f"Error appending data to Delta Lake for rpc {rpc_number}: {e}")

@@ -1,6 +1,5 @@
 
 import argparse
-from datetime import datetime
 from dotenv import load_dotenv
 import logging
 import os
@@ -37,7 +36,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
         raise ValueError(f"RPC_URL_{rpc_number} is not set. Please check your .env file.")
 
     # Connect to the blockchain RPC endpoint
-    web3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 30}))
+    web3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 120}))
 
     try:
         start_time = time.time()
@@ -81,7 +80,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
 
             try:
                 blocks_list = list(range(range_start_block, range_end_block))
-                fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, blocks_list)
+                fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_number, blocks_list)
             except Exception as e:
                 reprocess = True
                 error_msg = f"Error fetching or pushing data for block range {range_start_block}-{range_end_block}: {e}"
@@ -102,7 +101,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
             previous_block_range = current_block_range
 
         end_time = time.time()
-        success_msg = f"OPCODES data for blocks {start_block} to {end_block} written to Snowflake in {end_time - start_time:.2f} seconds."
+        success_msg = f"OPCODES data for blocks {start_block} to {end_block} written to Snowflake in {end_time - start_time:.2f} seconds using rpc {rpc_number}."
         logger.info(success_msg)
 
         # logger.info(f"Global failed blocks retry list: {global_failed_blocks_list_curr}")
@@ -133,7 +132,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
                 while not global_failed_blocks_queue_prev.empty():
                     failed_blocks_list.append(global_failed_blocks_queue_prev.get())
 
-                fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, failed_blocks_list)
+                fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_number, failed_blocks_list)
             except Exception as e:
                 error_msg = f"Error fetching or pushing data for failed blocks retry list: {e}"
                 logger.error(error_msg)
