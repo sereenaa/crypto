@@ -44,7 +44,8 @@ def get_block_trace_and_block_number(rpc_url, rpc_number, block_number, retries=
                 response = requests.post(rpc_url, json=payload, timeout=50)
                 response.raise_for_status()
                 return response.json(), block_number
-            except (RequestException, json.JSONDecodeError, requests.exceptions.Timeout) as e:
+            # except (RequestException, json.JSONDecodeError, requests.exceptions.Timeout) as e:
+            except Exception as e:
                 logger.error(f"Attempt {attempt + 1}/{retries} failed for block {block_number}: {e} - with rpc {rpc_number}")
                 if attempt < retries - 1:
                     time.sleep(2 ** attempt)  # Exponential backoff
