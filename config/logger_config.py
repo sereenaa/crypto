@@ -8,8 +8,8 @@ import sys
 log_group_name = 'arb-opcodes'  
 
 cloudwatch_handler = watchtower.CloudWatchLogHandler(log_group=log_group_name, 
-                                                     send_interval=30,   # Send logs every 30 seconds
-                                                     max_batch_count=50, # Maximum number of logs per batch
+                                                     send_interval=10,   # Send logs every 30 seconds
+                                                     max_batch_count=1000, # Maximum number of logs per batch
                                                     )  # Optional stream name
 
 logging.basicConfig(

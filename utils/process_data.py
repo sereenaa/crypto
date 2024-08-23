@@ -41,7 +41,7 @@ def get_block_trace_and_block_number(rpc_url, rpc_number, block_number, retries=
     try:
         for attempt in range(retries):
             try:
-                response = requests.post(rpc_url, json=payload, timeout=50)
+                response = requests.post(rpc_url, json=payload, timeout=60)
                 response.raise_for_status()
                 return response.json(), block_number
             # except (RequestException, json.JSONDecodeError, requests.exceptions.Timeout) as e:
@@ -104,11 +104,12 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_
     # Fetch block traces using ThreadPoolExecutor
     start_time = time.time()
     traces = []
-    with ThreadPoolExecutor(max_workers=num_cpus*2) as executor:
+    with ThreadPoolExecutor(max_workers=num_cpus) as executor:
         future_to_block = {executor.submit(get_block_trace_and_block_number, rpc_url, rpc_number, block): block for block in blocks_list}
         for future in as_completed(future_to_block):
             try:
-                trace, block_number = future.result(timeout=120)
+                trace, block_number = future.result(timeout=130)
+                logger.info(f'Block number {block_number} has been processed by rpc {rpc_number}')
                 # traces.append((trace, block_number))
                 if trace is not None:  # Check if trace is not None before appending
                     traces.append((trace, block_number))
@@ -122,7 +123,7 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_
 
     # Process block traces and concatenate into a single DataFrame using ThreadPoolExecutor (this seems to be faster than ProcessPoolExecutor)
     start_time = time.time()
-    with ThreadPoolExecutor(max_workers=num_cpus*2) as executor:
+    with ThreadPoolExecutor(max_workers=num_cpus) as executor:
         future_to_trace = {executor.submit(process_block_trace, trace): trace for trace in traces}
         dataframes = [future.result() for future in as_completed(future_to_trace)]
     df = pd.concat(dataframes, ignore_index=True)
