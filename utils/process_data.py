@@ -1,5 +1,5 @@
 
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed, TimeoutError
 import json
 from os import cpu_count
 import pandas as pd
@@ -10,8 +10,6 @@ import time
 from utils.util import *
 from config.logger_config import logger  # Import the logger
 
-# from globals import global_failed_blocks_list_prev, global_failed_blocks_list_curr
-from globals import global_failed_blocks_queue_curr 
 
 # Function to get block trace
 def get_block_trace(rpc_url, block_number):
@@ -52,10 +50,7 @@ def get_block_trace_and_block_number(rpc_url, rpc_number, block_number, retries=
                 else:
                     raise # re-raise the last caught exception, to move the control flow to the outer except block
     except Exception as e:
-        # global_failed_blocks_list_curr.append(block_number)
-        global_failed_blocks_queue_curr.put(block_number)
-        # logger.info(f"Global failed blocks retry list: {global_failed_blocks_list_curr}")
-        logger.info(f"Global failed blocks retry list size for rpc {rpc_number}: {global_failed_blocks_queue_curr.qsize()}")
+        logger.info(f"Block number {block_number} failed using rpc {rpc_number}")
         return None, block_number
 
 
@@ -155,7 +150,7 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_
     # Uncomment the following lines to append the data to Snowflake
     try:
         start_time = time.time()
-        delta_append(secret, table_name, merged_df)
+        delta_append(secret, 'STAGING', table_name, merged_df)
         end_time = time.time()
         logger.info(f"Time taken to append {str(len(blocks_list))} blocks to Snowflake for rpc {rpc_number}: {end_time - start_time:.2f} seconds")
     except Exception as e:

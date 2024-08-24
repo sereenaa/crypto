@@ -11,8 +11,6 @@ from web3 import Web3
 from utils.util import *
 from utils.process_data import *
 from config.logger_config import logger  # Import the logger
-# from globals import global_failed_blocks_list_prev, global_failed_blocks_list_curr
-from globals import global_failed_blocks_queue_prev, global_failed_blocks_queue_curr
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,10 +22,6 @@ table_name = os.getenv("TABLE_NAME")
 
 # Main function to fetch and store recent blocks
 def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_number=0):
-    # global global_failed_blocks_list_prev
-    # global global_failed_blocks_list_curr
-    global global_failed_blocks_queue_prev
-    global global_failed_blocks_queue_curr
 
     # Retrieve the Ethereum RPC URL from environment variables
     rpc_url = os.getenv(f"RPC_URL_{rpc_number}")
@@ -103,42 +97,6 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
         end_time = time.time()
         success_msg = f"OPCODES data for blocks {start_block} to {end_block} written to Snowflake in {end_time - start_time:.2f} seconds using rpc {rpc_number}."
         logger.info(success_msg)
-
-        # logger.info(f"Global failed blocks retry list: {global_failed_blocks_list_curr}")
-        # global_failed_blocks_list_prev = global_failed_blocks_list_curr
-        # global_failed_blocks_list_curr = []
-
-        # if len(global_failed_blocks_list_prev) > 0 and len(global_failed_blocks_list_prev) < 1000:
-        #     try:
-        #         fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, global_failed_blocks_list_prev)
-        #     except Exception as e:
-        #         error_msg = f"Error fetching or pushing data for failed blocks retry list: {e}"
-        #         logger.error(error_msg)
-        # else: 
-        #     error_msg = f"Global failed blocks retry list too large. Something has gone wrong. Please investigate!!"
-        #     logger.error(error_msg)
-
-        # Log the contents of the failed blocks queue
-        logger.info(f"Global failed blocks retry list size for rpc {rpc_number}: {global_failed_blocks_queue_curr.qsize()}")
-        
-        # Move items from the current queue to the previous queue
-        while not global_failed_blocks_queue_curr.empty():
-            global_failed_blocks_queue_prev.put(global_failed_blocks_queue_curr.get())
-
-        if global_failed_blocks_queue_prev.qsize() > 0 and global_failed_blocks_queue_prev.qsize() < 10000:
-            try:
-                # Collect all items from the queue to process them
-                failed_blocks_list = []
-                while not global_failed_blocks_queue_prev.empty():
-                    failed_blocks_list.append(global_failed_blocks_queue_prev.get())
-
-                fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_number, failed_blocks_list)
-            except Exception as e:
-                error_msg = f"Error fetching or pushing data for failed blocks retry list: {e}"
-                logger.error(error_msg)
-        else:
-            error_msg = f"Global failed blocks retry list too large for rpc {rpc_number}. Something has gone wrong. Please investigate!!"
-            logger.error(error_msg)
 
 
     except Exception as e:

@@ -66,9 +66,22 @@ def fetch_latest_block_number(secret, schema, table_name):
     return result[0]
 
 
+# Fetch failed blocks from Snowflake table
+def fetch_failed_blocks(secret, schema, table_name):
+    conn = get_snowflake_connection(secret, schema)
+    query = f"SELECT block_number FROM {table_name}"
+    cursor = conn.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    result_list = [item[0] for item in result]
+    cursor.close()
+    conn.close()
+    return result_list
+
+
 # Function to perform delta append using pandas to_sql
-def delta_append(secret, table_name, df):
-    conn = get_snowflake_connection(secret, 'STAGING')
+def delta_append(secret, schema, table_name, df):
+    conn = get_snowflake_connection(secret, schema)
     cursor = conn.cursor()
 
     # Append new data using write_pandas
