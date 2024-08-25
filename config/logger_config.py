@@ -1,7 +1,7 @@
 
 import logging
 import watchtower
-import faulthandler
+# import faulthandler
 import sys
 
 # Configure logging
@@ -23,14 +23,14 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# Redirect faulthandler output to the logger
-faulthandler.enable(file=sys.stderr)
+# # Redirect faulthandler output to the logger
+# faulthandler.enable(file=sys.stderr)
 
-# Custom exception hook to log uncaught exceptions
-def log_exception(exc_type, exc_value, exc_traceback):
-    if issubclass(exc_type, KeyboardInterrupt):
-        sys.__excepthook__(exc_type, exc_value, exc_traceback)
-        return
-    logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+# # Custom exception hook to log uncaught exceptions
+# def log_exception(exc_type, exc_value, exc_traceback):
+#     if issubclass(exc_type, KeyboardInterrupt):
+#         sys.__excepthook__(exc_type, exc_value, exc_traceback)
+#         return
+#     logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
-sys.excepthook = log_exception
+# sys.excepthook = log_exception

@@ -99,7 +99,7 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_
     # Fetch block traces using ThreadPoolExecutor
     start_time = time.time()
     traces = []
-    with ThreadPoolExecutor(max_workers=30) as executor:
+    with ThreadPoolExecutor(max_workers=16) as executor:
         future_to_block = {executor.submit(get_block_trace_and_block_number, rpc_url, rpc_number, block): block for block in blocks_list}
         for future in as_completed(future_to_block):
             try:
@@ -118,7 +118,7 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_
 
     # Process block traces and concatenate into a single DataFrame using ThreadPoolExecutor (this seems to be faster than ProcessPoolExecutor)
     start_time = time.time()
-    with ThreadPoolExecutor(max_workers=30) as executor:
+    with ThreadPoolExecutor(max_workers=16) as executor:
         future_to_trace = {executor.submit(process_block_trace, trace): trace for trace in traces}
         dataframes = [future.result() for future in as_completed(future_to_trace)]
     df = pd.concat(dataframes, ignore_index=True)
