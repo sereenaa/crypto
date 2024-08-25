@@ -19,14 +19,17 @@ RUN apt-get update && apt-get install -y \
 # Install any needed packages specified in requirements.txt
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copy the shell script into the container
-COPY run_scripts.sh /app/run_scripts.sh
+# # Copy the shell script into the container
+# COPY run_scripts.sh /app/run_scripts.sh
 
-# Make the shell script executable
-RUN chmod +x /app/run_scripts.sh
+# # Make the shell script executable
+# RUN chmod +x /app/run_scripts.sh
 
 # Make port 80 available to the world outside this container
 EXPOSE 80
 
 # Run the shell script when the container launches
-CMD ["/app/run_scripts.sh"]
+# CMD ["/app/run_scripts.sh"]
+
+# Run the specified Python script with the given arguments when the container launches
+CMD ["python", "main.py", "historical", "60530767", "62103959", "100", "5"]
