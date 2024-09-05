@@ -33,4 +33,4 @@ EXPOSE 80
 
 # Run the specified Python script with the given arguments when the container launches
 # CMD ["python", "main.py", "historical", "60091669", "60342466", "20", "4"]
-CMD ["sh", "-c", "python main.py historical 60091669 60342466 100 4 & python schedule_daily_push.py"]
+CMD ["sh", "-c", "python main.py historical 60092969 60342466 100 4 & python schedule_daily_push.py"]

@@ -23,8 +23,9 @@ def push_to_snowflake(s3, bucket_name, prefix):
     # Get the last processed block from Snowflake
     secret = get_secret(user='notnotsez-peter')
     table_name = os.getenv("TABLE_NAME")
-    last_processed_block = fetch_latest_block_number(secret, 'STAGING', table_name)
-
+    # last_processed_block = fetch_latest_block_number(secret, 'STAGING', table_name)
+    last_processed_block = None
+    
     # Get unprocessed objects from S3
     unprocessed_objects = get_unprocessed_s3_objects(s3, bucket_name, prefix, last_processed_block) 
 
