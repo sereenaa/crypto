@@ -35,7 +35,7 @@ def push_to_snowflake(s3, bucket_name, prefix):
     def process_batch(batch):
         df_list = [pd.read_parquet(f"s3://{BUCKET_NAME}/{obj['Key']}") for obj in batch]
         combined_df = pd.concat(df_list, ignore_index=True)
-        # delta_append(secret, 'STAGING', table_name, combined_df)
+        delta_append(secret, 'STAGING', table_name, combined_df)
         for obj in batch:
             mark_s3_object_as_processed(s3, BUCKET_NAME, obj['Key'])
 
