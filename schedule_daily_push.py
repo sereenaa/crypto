@@ -1,92 +1,67 @@
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import schedule
 import sqlite3
 import pandas as pd
 import json
 from dotenv import load_dotenv
-from utils.util import get_secret, delta_append
+from utils.util import *
 from config.logger_config import logger
 import time 
 
 load_dotenv()
 
-def transform_and_push_to_snowflake():
+# S3 connection details
+s3 = boto3.client('s3')
+BUCKET_NAME = os.getenv("BUCKET_NAME")
+S3_PREFIX = os.getenv("S3_PREFIX")
+
+def push_to_snowflake(s3, bucket_name, prefix):
     logger.info("Starting daily snowflake push")
 
-    # Connect to SQLite database
-    conn = sqlite3.connect('opcodes.db')
-
-    # Fetch unprocessed data from SQLite
-    query = '''
-    SELECT BLOCK_NUMBER, TRANSACTION_HASH, OPCODE, GAS, GAS_COST, STATE_GROWTH_COUNT
-    FROM raw_opcodes
-    WHERE PROCESSED = 'N'
-    '''
-    df = pd.read_sql_query(query, conn)
-
-    if df.empty:
-        logger.info("No new data to process")
-        conn.close()
-        return
-    
-    # Get the smallest and largest unprocessed block numbers
-    min_block = df['BLOCK_NUMBER'].min()
-    max_block = df['BLOCK_NUMBER'].max()
-
-    # First aggregation level: Aggregate by TRANSACTION_HASH to get MAX_GAS and MIN_GAS
-    start_time = time.time()
-    transaction_agg = df.groupby(['BLOCK_NUMBER', 'TRANSACTION_HASH']).agg(
-        MAX_GAS=('GAS', 'max'),
-        MIN_GAS=('GAS', 'min')
-    ).reset_index()
-
-    # Second aggregation level: Aggregate by TRANSACTION_HASH and OPCODE
-    opcode_agg = df.groupby(['BLOCK_NUMBER', 'TRANSACTION_HASH', 'OPCODE']).agg(
-        OPCODE_COUNT=('OPCODE', 'size'),
-        SUM_GAS_COST=('GAS_COST', 'sum'),
-        STATE_GROWTH_COUNT=('STATE_GROWTH_COUNT', 'sum')
-    ).reset_index()
-
-    # Merge the two aggregation results
-    merged_df = pd.merge(transaction_agg, opcode_agg, on=['BLOCK_NUMBER', 'TRANSACTION_HASH'])
-
-    end_time = time.time()
-    logger.info(f"Time taken to perform transformations on blocks {min_block} to {max_block}: {end_time - start_time:.2f} seconds")
-
-
-    # Push to Snowflake
+    # Get the last processed block from Snowflake
     secret = get_secret(user='notnotsez-peter')
     table_name = os.getenv("TABLE_NAME")
+    last_processed_block = fetch_latest_block_number(secret, 'STAGING', table_name)
 
-    try:
-        delta_append(secret, 'STAGING', table_name, merged_df)
-        logger.info(f"Successfully pushed {len(merged_df)} rows to Snowflake")
+    # Get unprocessed objects from S3
+    unprocessed_objects = get_unprocessed_s3_objects(s3, bucket_name, prefix, last_processed_block) 
 
-        # Mark processed rows in SQLite
-        cursor = conn.cursor()
-        cursor.execute('''
-        UPDATE raw_opcodes
-        SET processed = 'Y'
-        WHERE processed = 'N'
-        ''')
-        conn.commit()
-        logger.info(f"Marked {cursor.rowcount} rows as processed in SQLite")
+    if not unprocessed_objects:
+        logger.info("No new data to process")
+        return
 
-    except Exception as e:
-        logger.error(f"Error pushing data to Snowflake: {e}")
-        conn.rollback()
+    def process_batch(batch):
+        df_list = [pd.read_parquet(f"s3://{BUCKET_NAME}/{obj['Key']}") for obj in batch]
+        combined_df = pd.concat(df_list, ignore_index=True)
+        # delta_append(secret, 'STAGING', table_name, combined_df)
+        for obj in batch:
+            mark_s3_object_as_processed(s3, BUCKET_NAME, obj['Key'])
 
-    finally:
-        conn.close()
+    # 100 blocks per batch
+    batch_size = 100  # Adjust based on average file size and memory constraints
+    batches = [unprocessed_objects[i:i + batch_size] for i in range(0, len(unprocessed_objects), batch_size)]
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(process_batch, batch) for batch in batches]
+        for future in as_completed(futures):
+            future.result()  # This will raise any exceptions that occurred
+
+    delete_processed_s3_objects(s3, BUCKET_NAME, S3_PREFIX)
 
     logger.info("Daily Snowflake push completed")
 
 
-# Schedule the job to run daily at 5:00 PM machine time
-schedule.every().day.at("17:00").do(transform_and_push_to_snowflake)
+# Schedule the job to run daily at 3:00 PM machine time (3:00 PM UTC = 01:00 AM AEST)
+schedule.every().day.at("15:00").do(push_to_snowflake, s3, BUCKET_NAME, S3_PREFIX)
 
 if __name__ == "__main__":
     logger.info("Scheduler started")
     while True:
         schedule.run_pending()
         time.sleep(60)  # Sleep for 60 seconds before checking schedule again
+
+
+# Testing
+# push_to_snowflake(s3, BUCKET_NAME, S3_PREFIX)

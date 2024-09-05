@@ -1,6 +1,8 @@
 
 import boto3
 from botocore.exceptions import ClientError
+import concurrent.futures
+from itertools import islice
 import json
 import snowflake.connector
 from snowflake.connector.pandas_tools import write_pandas
@@ -106,3 +108,91 @@ def cleanup_db(conn):
             logger.info("Successfully closed connection to temporary SQLite database")
         except sqlite3.Error as e:
             logger.error(f"Error closing connection to temporary SQLite database: {e}")
+
+
+
+def get_unprocessed_s3_objects(s3, bucket_name, prefix, last_processed_block):
+    try:
+        objects = []
+        paginator = s3.get_paginator('list_objects_v2')
+        
+        operation_parameters = {
+            'Bucket': bucket_name,
+            'Prefix': prefix,
+        }
+        if last_processed_block is not None:
+            operation_parameters['StartAfter'] = str(last_processed_block)
+        
+        page_iterator = paginator.paginate(**operation_parameters)
+        
+        for page in page_iterator:
+            if 'Contents' in page:
+                for obj in page['Contents']:
+                    # Filter out the directory object and where the block number is greater than the last processed block
+                    if obj['Size'] > 0:
+                        block_number = int(obj['Key'].split('/')[-1].split('.')[0])
+                        if last_processed_block is None or block_number > int(last_processed_block):
+                            tags = s3.get_object_tagging(Bucket=bucket_name, Key=obj['Key'])
+                            if not any(tag['Key'] == 'processed' and tag['Value'] == 'true' for tag in tags['TagSet']):
+                                objects.append(obj)
+
+        # Sort objects after last_processed_block
+        sorted_objects = sorted(objects, key=lambda x: int(x['Key'].split('/')[-1].split('.')[0]))
+
+        logger.info(f"Found {len(sorted_objects)} unprocessed objects in S3 to process")
+        
+        return sorted_objects
+    except ClientError as e:
+        logger.error(f"Error fetching objects from S3: {e}")
+        raise
+
+def mark_s3_object_as_processed(s3, bucket_name, key):
+    try:
+        s3.put_object_tagging(
+            Bucket=bucket_name,
+            Key=key,
+            Tagging={'TagSet': [{'Key': 'processed', 'Value': 'true'}]}
+        )
+    except ClientError as e:
+        logger.error(f"Error marking object as processed: {e}")
+        raise
+
+
+def delete_processed_s3_objects(s3, bucket_name, prefix):
+    try:
+        paginator = s3.get_paginator('list_objects_v2')
+        page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+
+        delete_keys = []
+        for page in page_iterator:
+            # obj = page.get('Contents', [])[0]
+            for obj in page.get('Contents', []):
+                if obj['Size'] > 0:
+                    try:
+                        tags = s3.get_object_tagging(Bucket=bucket_name, Key=obj['Key'])
+                        if any(tag['Key'] == 'processed' and tag['Value'] == 'true' for tag in tags['TagSet']):
+                            delete_keys.append({'Key': obj['Key']})
+                    except ClientError as e:
+                        logger.error(f"Error checking object {obj['Key']}: {e}")
+
+            perform_batch_delete(s3, bucket_name, delete_keys) # perform batch delete every 1000 objects 
+            delete_keys = []
+
+        # Delete any remaining objects
+        if delete_keys:
+            perform_batch_delete(s3, bucket_name, delete_keys)
+
+    except ClientError as e:
+        logger.error(f"Error listing objects for deletion: {e}")
+
+def perform_batch_delete(s3, bucket_name, delete_keys):
+    try:
+        response = s3.delete_objects(
+            Bucket=bucket_name,
+            Delete={'Objects': delete_keys, 'Quiet': False}
+        )
+        deleted = len(response.get('Deleted', []))
+        errors = len(response.get('Errors', []))
+        logger.info(f"Batch delete: {deleted} objects deleted, {errors} errors")
+    except ClientError as e:
+        logger.error(f"Error in batch delete: {e}")

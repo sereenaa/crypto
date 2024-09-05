@@ -20,13 +20,13 @@ load_dotenv()
 secret = get_secret(user='notnotsez-peter')
 table_name = os.getenv("TABLE_NAME")
 
+# S3 connection details
+s3 = boto3.client('s3')
+BUCKET_NAME = os.getenv("BUCKET_NAME")
+S3_PREFIX = os.getenv("S3_PREFIX")
 
 # Main function to fetch and store recent blocks
-def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_number=0, conn=None):
-    if conn is None:
-        logger.error("Database connection not provided to main function")
-        return 
-    
+def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_number=0):
     # Retrieve the Ethereum RPC URL from environment variables
     rpc_url = os.getenv(f"RPC_URL_{rpc_number}")
     logger.info(f"RPC number {rpc_number}: {rpc_url}")
@@ -43,7 +43,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
             latest_block = web3.eth.block_number
             logger.info(f"Latest current block number: {str(latest_block)}")
 
-            # Fetch the latest timestamps and block numbers from Snowflake
+            # Fetch the latest block number from Snowflake
             try:
                 latest_snowflake_block_number = fetch_latest_block_number(secret, 'STAGING', table_name)
                 logger.info(f"Latest block number from Snowflake: {str(latest_snowflake_block_number)}")
@@ -63,7 +63,6 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
 
         range_start_block = start_block
 
-        
         previous_block_range = None # Initialise the previous iteration's block range
         sleep_time = 1 # Initialize sleep time for exponential backoff 
 
@@ -76,7 +75,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
 
             try:
                 blocks_list = list(range(range_start_block, range_end_block))
-                fetch_and_store_raw_opcodes_for_block_range(conn, rpc_url, rpc_number, blocks_list)
+                multi_thread_fetch_transform_store_block_trace(s3, BUCKET_NAME, S3_PREFIX, rpc_url, rpc_number, blocks_list)
             except Exception as e:
                 reprocess = True
                 error_msg = f"Error fetching or pushing data for block range {range_start_block}-{range_end_block}: {e}"
@@ -89,7 +88,6 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
                 else:
                     sleep_time = 1  # Reset sleep time if the block range is different
 
-                
             if not reprocess:
                 range_start_block += batch_size
 
@@ -97,9 +95,8 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
             previous_block_range = current_block_range
 
         end_time = time.time()
-        success_msg = f"OPCODES data for blocks {start_block} to {end_block} stored in SQLite in {end_time - start_time:.2f} seconds using rpc {rpc_number}."
+        success_msg = f"OPCODES data for blocks {start_block} to {end_block} stored in S3 in {end_time - start_time:.2f} seconds using rpc {rpc_number}."
         logger.info(success_msg)
-
 
     except Exception as e:
         error_msg = f"Unexpected error in main function: {e}"
@@ -114,29 +111,4 @@ if __name__ == "__main__":
     parser.add_argument('rpc_number', type=int, help='The rpc url to use for this run from .env')
     args = parser.parse_args()
 
-    try:
-        conn = sqlite3.connect('opcodes.db')
-        cursor = conn.cursor()
-        logger.info("Successfully connected to temporary SQLite database: opcodes.db")
-
-        # Create table if not exists
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS raw_opcodes (
-            BLOCK_NUMBER INTEGER,
-            TRANSACTION_HASH TEXT,
-            OPCODE TEXT,
-            GAS INTEGER,
-            GAS_COST INTEGER,
-            STATE_GROWTH_COUNT INTEGER,
-            TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PROCESSED CHAR(1) DEFAULT 'N'
-        )
-        ''')
-        conn.commit()
-        logger.info("Successfully created or verified 'raw_opcodes' table in temporary SQLite database")
-
-        main(args.run_strategy, args.start_block, args.end_block, args.batch_size, args.rpc_number, conn)
-    except sqlite3.Error as e:
-        logger.error(f"SQLite error: {e}")
-    finally:
-        cleanup_db(conn)
+    main(args.run_strategy, args.start_block, args.end_block, args.batch_size, args.rpc_number)

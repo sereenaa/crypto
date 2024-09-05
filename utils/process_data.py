@@ -1,5 +1,6 @@
 
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed, TimeoutError
+import io
 import json
 from os import cpu_count
 import pandas as pd
@@ -24,10 +25,9 @@ def get_block_trace(rpc_url, block_number):
     return response.json()
 
 
-# Function to get block trace
+# Function to get block trace, transform and store in S3
 # Reducing the retries will improve overall performance as it won't hold up the other threads
-def get_block_trace_and_block_number(rpc_url, rpc_number, block_number, retries=2):
-
+def fetch_transform_store_block_trace(rpc_url, rpc_number, block_number, s3, bucket_name, prefix, retries=2):
     payload = {
         "jsonrpc": "2.0",
         "method": "debug_traceBlockByNumber",
@@ -35,23 +35,65 @@ def get_block_trace_and_block_number(rpc_url, rpc_number, block_number, retries=
         "id": 1
     }
 
-    # Make sure this function never fails, and handles failures gracefully by adding failed blocks to global retry list
     try:
         for attempt in range(retries):
             try:
                 response = requests.post(rpc_url, json=payload, timeout=60)
                 response.raise_for_status()
-                return response.json(), block_number
-            # except (RequestException, json.JSONDecodeError, requests.exceptions.Timeout) as e:
+                trace = response.json()
+                
+                # Transform and store data
+                if 'result' in trace:
+                    data = []
+                    for tx in trace['result']:
+                        tx_hash = tx['txHash']
+                        for structLog in tx['result']['structLogs']:
+                            storage = structLog.get('storage', {})
+                            state_growth_count = sum(1 for val1, val2 in storage.items() if is_null(val1) and not is_null(val2))
+                            data.append({
+                                'BLOCK_NUMBER': block_number,
+                                'TRANSACTION_HASH': tx_hash,
+                                'OPCODE': structLog['op'],
+                                'GAS': structLog['gas'],
+                                'GAS_COST': structLog['gasCost'],
+                                'STATE_GROWTH_COUNT': state_growth_count
+                            })
+                    
+                    # Transform data
+                    df = pd.DataFrame(data)
+                    
+                    # First aggregation level: Aggregate by TRANSACTION_HASH to get MAX_GAS and MIN_GAS
+                    transaction_agg = df.groupby(['BLOCK_NUMBER', 'TRANSACTION_HASH']).agg(
+                        MAX_GAS=('GAS', 'max'),
+                        MIN_GAS=('GAS', 'min')
+                    ).reset_index()
+
+                    # Second aggregation level: Aggregate by TRANSACTION_HASH and OPCODE
+                    opcode_agg = df.groupby(['BLOCK_NUMBER', 'TRANSACTION_HASH', 'OPCODE']).agg(
+                        OPCODE_COUNT=('OPCODE', 'size'),
+                        SUM_GAS_COST=('GAS_COST', 'sum'),
+                        STATE_GROWTH_COUNT=('STATE_GROWTH_COUNT', 'sum')
+                    ).reset_index()
+
+                    # Merge the two aggregation results
+                    merged_df = pd.merge(transaction_agg, opcode_agg, on=['BLOCK_NUMBER', 'TRANSACTION_HASH'])
+                    
+                    # Store transformed data in S3
+                    s3_key = f"{prefix}{block_number}.parquet"
+                    buffer = io.BytesIO()
+                    merged_df.to_parquet(buffer, index=False)
+                    s3.put_object(Bucket=bucket_name, Key=s3_key, Body=buffer.getvalue())
+                
+                return True, block_number
             except Exception as e:
                 logger.error(f"Attempt {attempt + 1}/{retries} failed for block {block_number}: {e} - with rpc {rpc_number}")
                 if attempt < retries - 1:
                     time.sleep(2 ** attempt)  # Exponential backoff
                 else:
-                    raise # re-raise the last caught exception, to move the control flow to the outer except block
+                    raise
     except Exception as e:
         logger.info(f"Block number {block_number} failed using rpc {rpc_number}")
-        return None, block_number
+        return False, block_number
 
 
 # Function to check if a string represents a null value (all zeros)
@@ -157,41 +199,24 @@ def process_block_trace(trace_data):
 #         logger.info(f"Error appending data to Delta Lake for rpc {rpc_number}: {e}")
 
 
-# Fetch raw opcodes from RPC and store in SQLite
-def fetch_and_store_raw_opcodes_for_block_range(conn, rpc_url, rpc_number, blocks_list):
-    cursor = conn.cursor()
+# Fetch raw opcodes from RPC and store in S3
+def multi_thread_fetch_transform_store_block_trace(s3, bucket_name, prefix, rpc_url, rpc_number, blocks_list):
     num_cpus = cpu_count()
     logger.info(f"Number of CPUs available: {num_cpus}")
 
     start_time = time.time()
-    traces = []
     with ThreadPoolExecutor(max_workers=16) as executor:
-        future_to_block = {executor.submit(get_block_trace_and_block_number, rpc_url, rpc_number, block): block for block in blocks_list}
+        future_to_block = {executor.submit(fetch_transform_store_block_trace, rpc_url, rpc_number, block, s3, bucket_name, prefix): block for block in blocks_list}
         for future in as_completed(future_to_block):
             try:
-                trace, block_number = future.result(timeout=130)
-                logger.info(f'Block number {block_number} has been processed by rpc {rpc_number}')
-                if trace is not None:
-                    traces.append((trace, block_number))
+                success, block_number = future.result(timeout=130)
+                if success:
+                    logger.info(f'Block number {block_number} has been processed and stored by rpc {rpc_number}')
+                else:
+                    logger.error(f"Failed to fetch and store block {block_number} with rpc {rpc_number}")
             except TimeoutError:
                 logger.error(f"TimeoutError for block {future_to_block[future]} with rpc {rpc_number}")
             except Exception as e:
                 logger.error(f"Exception occurred for block {future_to_block[future]} with rpc {rpc_number}: {e}")
     end_time = time.time()
-    logger.info(f"Time taken to fetch traces for {str(len(blocks_list))} blocks with rpc {rpc_number}: {end_time - start_time:.2f} seconds")
-
-    start_time = time.time()
-    for trace, block_number in traces:
-        if 'result' in trace:
-            for tx in trace['result']:
-                tx_hash = tx['txHash']
-                for structLog in tx['result']['structLogs']:
-                    storage = structLog.get('storage', {})
-                    state_growth_count = sum(1 for val1, val2 in storage.items() if is_null(val1) and not is_null(val2))
-                    cursor.execute('''
-                    INSERT INTO raw_opcodes (BLOCK_NUMBER, TRANSACTION_HASH, OPCODE, GAS, GAS_COST, STATE_GROWTH_COUNT, PROCESSED)
-                    VALUES (?, ?, ?, ?, ?, ?, 'N')
-                    ''', (block_number, tx_hash, structLog['op'], structLog['gas'], structLog['gasCost'], state_growth_count))
-    conn.commit()
-    end_time = time.time()
-    logger.info(f"Time taken to store block traces for {str(len(blocks_list))} blocks for rpc {rpc_number}: {end_time - start_time:.2f} seconds")
+    logger.info(f"Time taken to fetch, transform, and store traces for {str(len(blocks_list))} blocks with rpc {rpc_number}: {end_time - start_time:.2f} seconds")
