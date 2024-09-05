@@ -7,6 +7,7 @@ import platform
 import time
 import watchtower
 from web3 import Web3
+import sqlite3
 
 from utils.util import *
 from utils.process_data import *
@@ -21,8 +22,11 @@ table_name = os.getenv("TABLE_NAME")
 
 
 # Main function to fetch and store recent blocks
-def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_number=0):
-
+def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_number=0, conn=None):
+    if conn is None:
+        logger.error("Database connection not provided to main function")
+        return 
+    
     # Retrieve the Ethereum RPC URL from environment variables
     rpc_url = os.getenv(f"RPC_URL_{rpc_number}")
     logger.info(f"RPC number {rpc_number}: {rpc_url}")
@@ -46,8 +50,6 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
             except Exception as e:
                 error_msg = f"Error fetching latest block numbers from Snowflake: {e}"
                 logger.info(error_msg)
-                if platform.system() == 'Windows':
-                    logger.error(error_msg)
                 return
 
             # Determine the start block based on the latest block number from Snowflake
@@ -74,7 +76,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
 
             try:
                 blocks_list = list(range(range_start_block, range_end_block))
-                fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_number, blocks_list)
+                fetch_and_store_raw_opcodes_for_block_range(conn, rpc_url, rpc_number, blocks_list)
             except Exception as e:
                 reprocess = True
                 error_msg = f"Error fetching or pushing data for block range {range_start_block}-{range_end_block}: {e}"
@@ -95,7 +97,7 @@ def main(run_strategy, start_block=None, end_block=None, batch_size=100, rpc_num
             previous_block_range = current_block_range
 
         end_time = time.time()
-        success_msg = f"OPCODES data for blocks {start_block} to {end_block} written to Snowflake in {end_time - start_time:.2f} seconds using rpc {rpc_number}."
+        success_msg = f"OPCODES data for blocks {start_block} to {end_block} stored in SQLite in {end_time - start_time:.2f} seconds using rpc {rpc_number}."
         logger.info(success_msg)
 
 
@@ -111,4 +113,30 @@ if __name__ == "__main__":
     parser.add_argument('batch_size', type=int, help='The number of blocks to process in one iteration of the the loop.')
     parser.add_argument('rpc_number', type=int, help='The rpc url to use for this run from .env')
     args = parser.parse_args()
-    main(args.run_strategy, args.start_block, args.end_block, args.batch_size, args.rpc_number)
+
+    try:
+        conn = sqlite3.connect('opcodes.db')
+        cursor = conn.cursor()
+        logger.info("Successfully connected to temporary SQLite database: opcodes.db")
+
+        # Create table if not exists
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS raw_opcodes (
+            BLOCK_NUMBER INTEGER,
+            TRANSACTION_HASH TEXT,
+            OPCODE TEXT,
+            GAS INTEGER,
+            GAS_COST INTEGER,
+            STATE_GROWTH_COUNT INTEGER,
+            TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PROCESSED CHAR(1) DEFAULT 'N'
+        )
+        ''')
+        conn.commit()
+        logger.info("Successfully created or verified 'raw_opcodes' table in temporary SQLite database")
+
+        main(args.run_strategy, args.start_block, args.end_block, args.batch_size, args.rpc_number, conn)
+    except sqlite3.Error as e:
+        logger.error(f"SQLite error: {e}")
+    finally:
+        cleanup_db(conn)

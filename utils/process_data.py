@@ -92,11 +92,77 @@ def process_block_trace(trace_data):
 
 # Fetch and push opcodes transformed df to Snowflake for a range of blocks 
 # The range of blocks is inclusive of start_block but not including end_block
-def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_number, blocks_list):
+# def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_number, blocks_list):
+#     num_cpus = cpu_count()
+#     logger.info(f"Number of CPUs available: {num_cpus}")
+
+#     # Fetch block traces using ThreadPoolExecutor
+#     start_time = time.time()
+#     traces = []
+#     with ThreadPoolExecutor(max_workers=16) as executor:
+#         future_to_block = {executor.submit(get_block_trace_and_block_number, rpc_url, rpc_number, block): block for block in blocks_list}
+#         for future in as_completed(future_to_block):
+#             try:
+#                 trace, block_number = future.result(timeout=130)
+#                 logger.info(f'Block number {block_number} has been processed by rpc {rpc_number}')
+#                 # traces.append((trace, block_number))
+#                 if trace is not None:  # Check if trace is not None before appending
+#                     traces.append((trace, block_number))
+#             except TimeoutError:
+#                 logger.error(f"TimeoutError for block {future_to_block[future]} with rpc {rpc_number}")
+#             except Exception as e:
+#                 logger.error(f"Exception occurred for block {future_to_block[future]} with rpc {rpc_number}: {e}")
+#     end_time = time.time()
+#     logger.info(f"Time taken to fetch traces for {str(len(blocks_list))} blocks with rpc {rpc_number}: {end_time - start_time:.2f} seconds")
+
+
+#     # Process block traces and concatenate into a single DataFrame using ThreadPoolExecutor (this seems to be faster than ProcessPoolExecutor)
+#     start_time = time.time()
+#     with ThreadPoolExecutor(max_workers=16) as executor:
+#         future_to_trace = {executor.submit(process_block_trace, trace): trace for trace in traces}
+#         dataframes = [future.result() for future in as_completed(future_to_trace)]
+#     df = pd.concat(dataframes, ignore_index=True)
+#     end_time = time.time()
+#     logger.info(f"Time taken to process block traces for {str(len(blocks_list))} blocks for rpc {rpc_number}: {end_time - start_time:.2f} seconds")
+
+
+#     # First aggregation level: Aggregate by TRANSACTION_HASH to get MAX_GAS and MIN_GAS
+#     start_time = time.time()
+#     transaction_agg = df.groupby(['BLOCK_NUMBER', 'TRANSACTION_HASH']).agg(
+#         MAX_GAS=('GAS', 'max'),
+#         MIN_GAS=('GAS', 'min')
+#     ).reset_index()
+
+#     # Second aggregation level: Aggregate by TRANSACTION_HASH and OPCODE
+#     opcode_agg = df.groupby(['BLOCK_NUMBER', 'TRANSACTION_HASH', 'OPCODE']).agg(
+#         OPCODE_COUNT=('OPCODE', 'size'),
+#         SUM_GAS_COST=('GAS_COST', 'sum'),
+#         STATE_GROWTH_COUNT=('STATE_GROWTH_COUNT', 'sum')
+#     ).reset_index()
+
+#     # Merge the two aggregation results
+#     merged_df = pd.merge(transaction_agg, opcode_agg, on=['BLOCK_NUMBER', 'TRANSACTION_HASH'])
+
+#     end_time = time.time()
+#     logger.info(f"Time taken to perform transformations on {str(len(blocks_list))} blocks for rpc {rpc_number}: {end_time - start_time:.2f} seconds")
+
+
+#     # Uncomment the following lines to append the data to Snowflake
+#     try:
+#         start_time = time.time()
+#         delta_append(secret, 'STAGING', table_name, merged_df)
+#         end_time = time.time()
+#         logger.info(f"Time taken to append {str(len(blocks_list))} blocks to Snowflake for rpc {rpc_number}: {end_time - start_time:.2f} seconds")
+#     except Exception as e:
+#         logger.info(f"Error appending data to Delta Lake for rpc {rpc_number}: {e}")
+
+
+# Fetch raw opcodes from RPC and store in SQLite
+def fetch_and_store_raw_opcodes_for_block_range(conn, rpc_url, rpc_number, blocks_list):
+    cursor = conn.cursor()
     num_cpus = cpu_count()
     logger.info(f"Number of CPUs available: {num_cpus}")
 
-    # Fetch block traces using ThreadPoolExecutor
     start_time = time.time()
     traces = []
     with ThreadPoolExecutor(max_workers=16) as executor:
@@ -105,8 +171,7 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_
             try:
                 trace, block_number = future.result(timeout=130)
                 logger.info(f'Block number {block_number} has been processed by rpc {rpc_number}')
-                # traces.append((trace, block_number))
-                if trace is not None:  # Check if trace is not None before appending
+                if trace is not None:
                     traces.append((trace, block_number))
             except TimeoutError:
                 logger.error(f"TimeoutError for block {future_to_block[future]} with rpc {rpc_number}")
@@ -115,43 +180,18 @@ def fetch_and_push_raw_opcodes_for_block_range(secret, table_name, rpc_url, rpc_
     end_time = time.time()
     logger.info(f"Time taken to fetch traces for {str(len(blocks_list))} blocks with rpc {rpc_number}: {end_time - start_time:.2f} seconds")
 
-
-    # Process block traces and concatenate into a single DataFrame using ThreadPoolExecutor (this seems to be faster than ProcessPoolExecutor)
     start_time = time.time()
-    with ThreadPoolExecutor(max_workers=16) as executor:
-        future_to_trace = {executor.submit(process_block_trace, trace): trace for trace in traces}
-        dataframes = [future.result() for future in as_completed(future_to_trace)]
-    df = pd.concat(dataframes, ignore_index=True)
+    for trace, block_number in traces:
+        if 'result' in trace:
+            for tx in trace['result']:
+                tx_hash = tx['txHash']
+                for structLog in tx['result']['structLogs']:
+                    storage = structLog.get('storage', {})
+                    state_growth_count = sum(1 for val1, val2 in storage.items() if is_null(val1) and not is_null(val2))
+                    cursor.execute('''
+                    INSERT INTO raw_opcodes (BLOCK_NUMBER, TRANSACTION_HASH, OPCODE, GAS, GAS_COST, STATE_GROWTH_COUNT, PROCESSED)
+                    VALUES (?, ?, ?, ?, ?, ?, 'N')
+                    ''', (block_number, tx_hash, structLog['op'], structLog['gas'], structLog['gasCost'], state_growth_count))
+    conn.commit()
     end_time = time.time()
-    logger.info(f"Time taken to process block traces for {str(len(blocks_list))} blocks for rpc {rpc_number}: {end_time - start_time:.2f} seconds")
-
-
-    # First aggregation level: Aggregate by TRANSACTION_HASH to get MAX_GAS and MIN_GAS
-    start_time = time.time()
-    transaction_agg = df.groupby(['BLOCK_NUMBER', 'TRANSACTION_HASH']).agg(
-        MAX_GAS=('GAS', 'max'),
-        MIN_GAS=('GAS', 'min')
-    ).reset_index()
-
-    # Second aggregation level: Aggregate by TRANSACTION_HASH and OPCODE
-    opcode_agg = df.groupby(['BLOCK_NUMBER', 'TRANSACTION_HASH', 'OPCODE']).agg(
-        OPCODE_COUNT=('OPCODE', 'size'),
-        SUM_GAS_COST=('GAS_COST', 'sum'),
-        STATE_GROWTH_COUNT=('STATE_GROWTH_COUNT', 'sum')
-    ).reset_index()
-
-    # Merge the two aggregation results
-    merged_df = pd.merge(transaction_agg, opcode_agg, on=['BLOCK_NUMBER', 'TRANSACTION_HASH'])
-
-    end_time = time.time()
-    logger.info(f"Time taken to perform transformations on {str(len(blocks_list))} blocks for rpc {rpc_number}: {end_time - start_time:.2f} seconds")
-
-
-    # Uncomment the following lines to append the data to Snowflake
-    try:
-        start_time = time.time()
-        delta_append(secret, 'STAGING', table_name, merged_df)
-        end_time = time.time()
-        logger.info(f"Time taken to append {str(len(blocks_list))} blocks to Snowflake for rpc {rpc_number}: {end_time - start_time:.2f} seconds")
-    except Exception as e:
-        logger.info(f"Error appending data to Delta Lake for rpc {rpc_number}: {e}")
+    logger.info(f"Time taken to store block traces for {str(len(blocks_list))} blocks for rpc {rpc_number}: {end_time - start_time:.2f} seconds")

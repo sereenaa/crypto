@@ -4,6 +4,7 @@ from botocore.exceptions import ClientError
 import json
 import snowflake.connector
 from snowflake.connector.pandas_tools import write_pandas
+import sqlite3
 
 from config.logger_config import logger  # Import the logger
 
@@ -94,3 +95,14 @@ def delta_append(secret, schema, table_name, df):
 
     cursor.close()
     conn.close()
+
+
+# Don't forget to close the connection when you're done
+# This could be at the end of your script or in a function that's called when processing is complete
+def cleanup_db(conn):
+    if conn:
+        try:
+            conn.close()
+            logger.info("Successfully closed connection to temporary SQLite database")
+        except sqlite3.Error as e:
+            logger.error(f"Error closing connection to temporary SQLite database: {e}")
