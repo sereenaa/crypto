@@ -32,6 +32,6 @@ def check_parquet_file_in_s3(bucket_name, s3_key):
 
 # Usage example
 bucket_name = 'arbitrum-opcodes'
-s3_key = 'raw_opcodes/60091469.parquet'
+s3_key = 'raw_opcodes/60104676.parquet'
 
 check_parquet_file_in_s3(bucket_name, s3_key)

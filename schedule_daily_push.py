@@ -25,7 +25,7 @@ def push_to_snowflake(s3, bucket_name, prefix):
     table_name = os.getenv("TABLE_NAME")
     # last_processed_block = fetch_latest_block_number(secret, 'STAGING', table_name)
     last_processed_block = None
-    
+
     # Get unprocessed objects from S3
     unprocessed_objects = get_unprocessed_s3_objects(s3, bucket_name, prefix, last_processed_block) 
 
@@ -41,10 +41,10 @@ def push_to_snowflake(s3, bucket_name, prefix):
             mark_s3_object_as_processed(s3, BUCKET_NAME, obj['Key'])
 
     # 100 blocks per batch
-    batch_size = 100  # Adjust based on average file size and memory constraints
+    batch_size = 100  # Adjust based on average file size and memory constraints, can try up to 1000
     batches = [unprocessed_objects[i:i + batch_size] for i in range(0, len(unprocessed_objects), batch_size)]
 
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    with ThreadPoolExecutor(max_workers=8) as executor: # try up to 32 workers 
         futures = [executor.submit(process_batch, batch) for batch in batches]
         for future in as_completed(futures):
             future.result()  # This will raise any exceptions that occurred
