@@ -22,8 +22,8 @@ def check_parquet_file_in_s3(bucket_name, s3_key):
         print(df.columns.tolist())
         print("\nData types:")
         print(df.dtypes)
-        print("\nFirst few rows:")
-        print(df.head())
+        print("\nEntire dataframe:")
+        print(df)
 
         # Optionally, you can perform more specific checks or analysis here
 
@@ -32,6 +32,6 @@ def check_parquet_file_in_s3(bucket_name, s3_key):
 
 # Usage example
 bucket_name = 'arbitrum-opcodes'
-s3_key = 'raw_opcodes/60104676.parquet'
+s3_key = 'raw_opcodes_dev/61190585_61190594.parquet'
 
 check_parquet_file_in_s3(bucket_name, s3_key)

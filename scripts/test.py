@@ -13,6 +13,18 @@ RPC_URL = "https://red-side-seed.nova-mainnet.quiknode.pro/34758e88cb1015be06f73
 web3 = Web3(Web3.HTTPProvider(RPC_URL))
 
 
+# Function to get block trace
+def get_block_trace(rpc_url, block_number):
+    payload = {
+        "jsonrpc": "2.0",
+        "method": "debug_traceBlockByNumber",
+        "params": [hex(block_number), {}],
+        "id": 1
+    }
+    response = requests.post(rpc_url, json=payload)
+    logger.info(response.json()['result'][0]['result']['structLogs'])
+    return response.json()
+
 
 # Replace with the block number you want to trace
 block_number = 1234567

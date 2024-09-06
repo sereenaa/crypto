@@ -69,6 +69,11 @@ def fetch_latest_block_number(secret, schema, table_name):
     return result[0]
 
 
+# Function to check if a string represents a null value (all zeros)
+def is_null(value):
+    return value == '0000000000000000000000000000000000000000000000000000000000000000'
+
+
 # Fetch failed blocks from Snowflake table
 def fetch_failed_blocks(secret, schema, table_name):
     conn = get_snowflake_connection(secret, schema)
