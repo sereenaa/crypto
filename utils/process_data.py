@@ -186,7 +186,7 @@ def fetch_transform_store_block_trace(rpc_url, rpc_number, block_numbers, s3, bu
 
     # Append failed blocks in a zipped json file in S3
     if failed_blocks:
-        failed_blocks_key = f"failed_blocks.jsonl.gz"
+        failed_blocks_key = f"failed_blocks_{rpc_number}.jsonl.gz"
 
         try:
             # Try to get the existing file
@@ -215,7 +215,7 @@ def fetch_transform_store_block_trace(rpc_url, rpc_number, block_numbers, s3, bu
         buffer.seek(0)
         s3.put_object(Bucket=bucket_name, Key=failed_blocks_key, Body=buffer.getvalue())
 
-        logger.info(f"Updated failed_blocks.jsonl.gz in S3 with {len(new_data)} new unique failed blocks")
+        logger.info(f"Updated failed_blocks_{rpc_number}.jsonl.gz in S3 with {len(new_data)} new unique failed blocks")
 
 
     return True, block_numbers
@@ -229,7 +229,7 @@ def multi_thread_fetch_transform_store_block_trace(s3, bucket_name, prefix, rpc_
     block_batches = [blocks_list[i:i+10] for i in range(0, len(blocks_list), 10)]
 
     start_time = time.time()
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=16) as executor:
         future_to_blocks = {executor.submit(fetch_transform_store_block_trace, rpc_url, rpc_number, batch, s3, bucket_name, prefix): batch for batch in block_batches}
         for future in as_completed(future_to_blocks):
             try:
