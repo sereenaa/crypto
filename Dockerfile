@@ -32,4 +32,4 @@ EXPOSE 80
 # CMD ["/app/run_scripts.sh"]
 
 # Run the specified Python script with the given arguments when the container launches
-CMD ["python", "main.py", "historical", "48431353", "50006190", "100", "2"]
+CMD ["python", "main.py", "historical", "50006190", "51581027", "100", "3"]
