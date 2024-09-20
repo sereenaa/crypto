@@ -1,6 +1,0 @@
-requests
-web3
-evm-trace
-boto3
-pandas
-snowflake-connector-python[pandas]
