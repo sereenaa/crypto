@@ -33,8 +33,15 @@ jobs:
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: saber
+        DUNE_API_KEY: ${{ secrets.DUNE_API_KEY }}  # Pass Dune API Key
+        SBR_RPC: ${{ secrets.SBR_RPC }}            # Pass RPC URL
       run: |
         tag=${{ 'latest' }}
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$tag .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$tag
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$tag" >> $GITHUB_ENV
+
+    - name: Update AWS Lambda function
+      id: update-lambda
+      run: |
+        aws lambda update-function-code --function-name saber --image-uri ${{ env.image }}
