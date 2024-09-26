@@ -1,5 +1,5 @@
 # Dockerfile
-FROM node:20
+FROM node:20 AS build
 
 # Set the working directory
 WORKDIR /usr/src/app
@@ -8,13 +8,25 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm ci
 
 # Copy the rest of your application code
 COPY . .
 
+# If you have a build step, add it here
+# RUN npm run build
+
+# Use a smaller base image for the final stage
+FROM node:20-slim
+
+# Set the working directory
+WORKDIR /usr/src/app
+
+# Copy only the necessary files from the build stage
+COPY --from=build /usr/src/app ./
+
 # Expose the port your app runs on (if applicable)
-# EXPOSE 3000
+EXPOSE 3000
 
 # Define build arguments
 ARG SBR_RPC
