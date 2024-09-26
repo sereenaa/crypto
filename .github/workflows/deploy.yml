@@ -34,7 +34,7 @@ jobs:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: saber
         DUNE_API_KEY: ${{ secrets.DUNE_API_KEY }}  # Pass Dune API Key
-        SBR_RPC: ${{ secrets.SBR_RPC }}            # Pass RPC URL 
+        SBR_RPC: ${{ secrets.SBR_RPC }}            # Pass RPC URL
       run: |
         tag=${{ 'latest' }}
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$tag .

@@ -15,6 +15,7 @@ const LOCKED_ADDRESS = '8erad8kmNrLJDJPe9UkmTHomrMV3EW48sjGeECyVjbYX';
 async function fetchDataAndUpload() {
     const SFMIdlItem = await getProgramIdl(LOCK_PROGRAM);
     const SBR_ADDRESS = 'Saber2gLauYim4Mvftnrasomsv6NvAuncvMEZwcLpD1';
+    console.log(process.env.SBR_RPC);
     const connection = new Connection(process.env.SBR_RPC, 'processed');
     const mint = await getMint(connection, new PublicKey(SBR_ADDRESS));
 
