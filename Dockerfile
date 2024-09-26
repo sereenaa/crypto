@@ -1,5 +1,5 @@
 # Dockerfile
-FROM node:20 AS build
+FROM public.ecr.aws/lambda/nodejs:14 AS build
 
 # Set the working directory
 WORKDIR /usr/src/app
@@ -16,8 +16,8 @@ COPY . .
 # If you have a build step, add it here
 # RUN npm run build
 
-# Use a smaller base image for the final stage
-FROM node:20-slim
+# Use the Lambda runtime interface client
+FROM public.ecr.aws/lambda/nodejs:14
 
 # Set the working directory
 WORKDIR /usr/src/app
@@ -37,4 +37,4 @@ ENV SBR_RPC=${SBR_RPC}
 ENV DUNE_API_KEY=${DUNE_API_KEY}
 
 # Command to run your application
-CMD ["node", "index.js"]
+CMD ["index.handler"]

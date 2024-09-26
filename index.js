@@ -84,10 +84,13 @@ async function uploadCsvToDune(apiKey, csvData, tableName, description) {
         })
     };
     
-    fetch('https://api.dune.com/api/v1/table/upload/csv', options)
-        .then(response => response.json())
-        .then(response => console.log(response))
-        .catch(err => console.error(err));
+    try {
+        const response = await fetch('https://api.dune.com/api/v1/table/upload/csv', options);
+        const data = await response.json();
+        console.log(data);
+    } catch (err) {
+        console.error('Error uploading CSV to Dune:', err);
+    }
 }
 
 // Execute the main function
