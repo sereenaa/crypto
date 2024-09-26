@@ -5,7 +5,6 @@ import { TOKEN_2022_PROGRAM_ID, burnChecked, createBurnCheckedInstruction, creat
 import bs58 from 'bs58';
 import { SolanaFMParser, checkIfAccountParser, ParserType } from "@solanafm/explorer-kit";
 import { getProgramIdl } from "@solanafm/explorer-kit-idls";
-import fs from 'fs';
 
 dotenv.config(); // Load environment variables
 
@@ -62,6 +61,8 @@ async function fetchDataAndUpload() {
         // Upload CSV to Dune
         const duneApiKey = process.env.DUNE_API_KEY; // Ensure you have this in your .env file
         await uploadCsvToDune(duneApiKey, csvContent, 'saber', 'circulation_data_for_saber');
+
+        return true;
     } catch (error) {
         console.error('Error in fetchDataAndUpload:', error);
         throw error; // Ensure Lambda knows it failed
