@@ -1,32 +1,14 @@
 # Dockerfile
-FROM public.ecr.aws/lambda/nodejs:20 AS build
-
-# Set the working directory
-WORKDIR /usr/src/app
+FROM public.ecr.aws/lambda/nodejs:18
 
 # Copy package.json and package-lock.json
-COPY package*.json ./
+COPY package*.json ${LAMBDA_TASK_ROOT}
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
 # Copy the rest of your application code
-COPY . .
-
-# If you have a build step, add it here
-# RUN npm run build
-
-# Use the Lambda runtime interface client
-FROM public.ecr.aws/lambda/nodejs:20
-
-# Set the working directory
-WORKDIR /usr/src/app
-
-# Copy only the necessary files from the build stage
-COPY --from=build /usr/src/app ./
-
-# Expose the port your app runs on (if applicable)
-EXPOSE 3000
+COPY . ${LAMBDA_TASK_ROOT}
 
 # Define build arguments
 ARG SBR_RPC
