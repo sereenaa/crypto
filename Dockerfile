@@ -25,4 +25,4 @@ ENV SBR_RPC=${SBR_RPC}
 ENV DUNE_API_KEY=${DUNE_API_KEY}
 
 # Command to run your application
-CMD ["node", "get_payload.js"]
+CMD ["node", "index.js"]
