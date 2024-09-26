@@ -97,7 +97,7 @@ async function uploadCsvToDune(apiKey, csvData, tableName, description) {
 //     console.error(err);
 // });
 
-exports.handler = async (event, context) => {
+export const handler = async (event, context) => {
     try {
         const result = await fetchDataAndUpload();
         return {
