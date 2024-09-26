@@ -37,7 +37,10 @@ jobs:
         SBR_RPC: ${{ secrets.SBR_RPC }}            # Pass RPC URL
       run: |
         tag=${{ 'latest' }}
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$tag .
+        docker build \
+          --build-arg SBR_RPC=${{ secrets.SBR_RPC }} \
+          --build-arg DUNE_API_KEY=${{ secrets.DUNE_API_KEY }} \
+          -t $ECR_REGISTRY/$ECR_REPOSITORY:$tag .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$tag
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$tag" >> $GITHUB_ENV
 
