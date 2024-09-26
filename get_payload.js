@@ -93,6 +93,22 @@ async function uploadCsvToDune(apiKey, csvData, tableName, description) {
 }
 
 // Execute the main function
-fetchDataAndUpload().catch(err => {
-    console.error(err);
-});
+// fetchDataAndUpload().catch(err => {
+//     console.error(err);
+// });
+
+exports.handler = async (event, context) => {
+    try {
+        const result = await fetchDataAndUpload();
+        return {
+            statusCode: 200,
+            body: JSON.stringify({ success: result }),
+        };
+    } catch (error) {
+        console.error('Error in Lambda handler:', error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: 'Internal Server Error' }),
+        };
+    }
+};
