@@ -1,5 +1,5 @@
 # Dockerfile
-FROM public.ecr.aws/lambda/nodejs:14 AS build
+FROM public.ecr.aws/lambda/nodejs:20 AS build
 
 # Set the working directory
 WORKDIR /usr/src/app
@@ -17,7 +17,7 @@ COPY . .
 # RUN npm run build
 
 # Use the Lambda runtime interface client
-FROM public.ecr.aws/lambda/nodejs:14
+FROM public.ecr.aws/lambda/nodejs:20
 
 # Set the working directory
 WORKDIR /usr/src/app
