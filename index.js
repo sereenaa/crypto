@@ -1,8 +1,6 @@
 import dotenv from 'dotenv'; // Ensure dotenv is imported
-import axios from 'axios'; // Import axios for HTTP requests
 import { PublicKey, Keypair, Connection, VersionedTransaction, TransactionInstruction, TransactionMessage } from '@solana/web3.js';
 import { TOKEN_2022_PROGRAM_ID, burnChecked, createBurnCheckedInstruction, createTransferCheckedInstruction, getAssociatedTokenAddressSync, getMint, getTransferFeeAmount, transferChecked, unpackAccount, unpackMint, withdrawWithheldTokensFromAccounts } from "@solana/spl-token";
-import bs58 from 'bs58';
 import { SolanaFMParser, checkIfAccountParser, ParserType } from "@solanafm/explorer-kit";
 import { getProgramIdl } from "@solanafm/explorer-kit-idls";
 
