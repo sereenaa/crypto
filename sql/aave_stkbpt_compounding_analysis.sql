@@ -101,8 +101,8 @@ with recursive cte as (
     , inv.user_lp_tokens as user_lp_tokens_no_compounding
     , inv.user_lp_tokens / inv.pool_num_lp_tokens as user_lp_share_no_compounding
     , inv.user_lp_tokens / apr.cumulative_num_stk_lp_tokens_total as user_stkbpt_share_no_compounding
-    , inv.user_share * inv.lp_user_aave_token_balance as aave_token_balance_no_compounding
-    , inv.user_share * inv.lp_user_aave_token_balance * inv.aave_usd_price as aave_usd_value_no_compounding
+    , inv.lp_user_aave_token_balance as aave_token_balance_no_compounding
+    , inv.lp_user_aave_token_balance * inv.aave_usd_price as aave_usd_value_no_compounding
     -- daily compounding
     , c.user_lp_tokens_1_day + c.lp_tokens_daily_reward_1_day as user_lp_tokens_1_day
     , (c.user_lp_tokens_1_day + c.lp_tokens_daily_reward_1_day) / apr.cumulative_num_stk_lp_tokens_total as user_stkbpt_share_1_day
@@ -111,7 +111,7 @@ with recursive cte as (
     , (c.user_lp_tokens_1_day + c.lp_tokens_daily_reward_1_day) / inv.pool_num_lp_tokens * inv.pool_aave_token_balance * inv.aave_usd_price as aave_usd_value_1_day
     , (c.user_lp_tokens_1_day + c.lp_tokens_daily_reward_1_day) / inv.pool_num_lp_tokens * inv.pool_wsteth_token_balance as wsteth_token_balance_1_day
     , (c.user_lp_tokens_1_day + c.lp_tokens_daily_reward_1_day) / inv.pool_num_lp_tokens * inv.pool_wsteth_token_balance * inv.wsteth_usd_price as wsteth_usd_value_1_day
-    , ((c.user_lp_tokens_1_day + c.lp_tokens_daily_reward_1_day) / inv.pool_num_lp_tokens * inv.pool_aave_token_balance * inv.aave_usd_price) + ((c.user_lp_tokens_1_day + c.lp_tokens_daily_reward_1_day) / inv.pool_aave_token_balance * inv.pool_wsteth_token_balance * inv.wsteth_usd_price) as user_usd_total_value_1_day
+    , ((c.user_lp_tokens_1_day + c.lp_tokens_daily_reward_1_day) / inv.pool_num_lp_tokens * inv.pool_aave_token_balance * inv.aave_usd_price) + ((c.user_lp_tokens_1_day + c.lp_tokens_daily_reward_1_day) / inv.pool_num_lp_tokens * inv.pool_wsteth_token_balance * inv.wsteth_usd_price) as user_usd_total_value_1_day
     , (c.user_lp_tokens_1_day + c.lp_tokens_daily_reward_1_day) / apr.cumulative_num_stk_lp_tokens_total * apr.usd_emission_per_day as usd_daily_reward_1_day
     , (c.user_lp_tokens_1_day + c.lp_tokens_daily_reward_1_day) / apr.cumulative_num_stk_lp_tokens_total * apr.usd_emission_per_day / apr.tvs * apr.cumulative_num_stk_lp_tokens_total as lp_tokens_daily_reward_1_day
     -- compounding every 7 days
