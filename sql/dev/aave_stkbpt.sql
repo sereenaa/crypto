@@ -724,12 +724,35 @@ select count(*) from `tokenlogic-data-dev.events.aave_stk_token_transfer` where 
 select min(block_timestamp) from `tokenlogic-data-dev.events.aave_stk_token_transfer` where stake_token = '0x9eda81c21c273a82be9bbc19b6a6182212068101'; --stkAAVEwstETHBPTv2
 
 
+-- events.aave_stk_token_transfer
+-- contains StakeToken Transfer events for all Aave stake tokens
+SELECT 
+  m.chain
+  , timestamp_seconds(m.block_timestamp) as block_timestamp
+  , date_trunc(timestamp_seconds(m.block_timestamp), hour) as block_hour
+  , date_trunc(timestamp_seconds(m.block_timestamp), day) as block_day
+  , m.block_height
+  , m.tx_hash
+  , m.log_index
+  , m.contract_address as stake_token
+  , m.symbol
+  , m.from_ as `from`
+  , m.to as `to`
+  , cast(m.value as bignumeric) as value
+FROM `tokenlogic-data-dev.indexer_prod.stk_token_transfer` m
+where m.contract_address = '0x9eda81c21c273a82be9bbc19b6a6182212068101'
+order by block_timestamp
+  -- and cast(timestamp_seconds(block_timestamp) as date) = '2024-10-07'
+
+
+
 -- number of staked and unstaked BPTs from the safety module per day
 with deposits as (
   select 
     cast(block_day as date) as day
     , sum(value) as num_bpts_staked
   from `tokenlogic-data-dev.events.aave_stk_token_transfer`
+  -- from {{ source('events', 'aave_stk_token_transfer') }}
   where `from` = '0x0000000000000000000000000000000000000000'
     and stake_token = '0x9eda81c21c273a82be9bbc19b6a6182212068101'
   group by day
@@ -740,6 +763,7 @@ with deposits as (
     cast(block_day as date) as day
     , sum(value) as num_bpts_unstaked
   from `tokenlogic-data-dev.events.aave_stk_token_transfer`
+  -- from {{ source('events', 'aave_stk_token_transfer') }}
   where `to` = '0x0000000000000000000000000000000000000000'
     and stake_token = '0x9eda81c21c273a82be9bbc19b6a6182212068101'
   group by day

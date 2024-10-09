@@ -1,7 +1,9 @@
 select * from `tokenlogic-data.datamart_aave.aave_stkbpt_daily_stakes`;
 
 select * from raw_data_aave.aave_annual_expenses;
+select * from raw_data_aave.aave_payment_wallet_labels order by grist_last_updated desc;
 select * from datamart_aave.aave_annual_expenses;
+select * from datamart_aave.aave_payment_labels;
 
 -- alter table raw_data_aave.aave_manual_dao_spends add column discipline string;
 -- alter table raw_data_aave.aave_payment_wallet_labels add column discipline string;
