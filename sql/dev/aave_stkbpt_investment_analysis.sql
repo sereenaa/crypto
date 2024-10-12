@@ -74,3 +74,7 @@ select
 from user_calculations 
 where cast(block_hour as date) > '2024-02-10'
 order by block_hour desc
+
+
+
+select * from tokenlogic-data-dev.datamart_aave.aave_stkbpt_investment_analysis;

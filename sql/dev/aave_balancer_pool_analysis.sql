@@ -46,6 +46,7 @@ with prices as (
       , price
       , row_number() over (partition by cast(block_timestamp as date), asset order by block_timestamp desc) as row_num
     from prices.chainlink_subgraph_prices
+    -- from {{ source('prices', 'chainlink_subgraph_prices') }}
     where pair in ('AAVE/USD', 'ETH/USD')
   ) 
   where row_num = 1
@@ -63,11 +64,12 @@ with prices as (
     , sum(case when delta_2 < 0 and delta_1 = 0 then cast(delta_2 as float64)/1e18 else null end) as aave_only_withdrawal
     , sum(case when delta_2 > 0 then cast(delta_2 as float64)/1e18 else null end) as aave_total_deposit 
     , sum(case when delta_2 < 0 then cast(delta_2 as float64)/1e18 else null end) as aave_total_withdrawal
-    , sum(delta_1) as wstETH_net
-    , sum(delta_2) as aave_net
+    , sum(cast(delta_1 as float64)/1e18) as wstETH_net
+    , sum(cast(delta_2 as float64)/1e18) as aave_net
     , p.aave_price 
     , p.eth_price
   from raw_data_aave.aave_20wstETH_80AAVE_PoolBalanceChanged ap
+  -- from {{ source('raw_data_aave', 'aave_20wstETH_80AAVE_PoolBalanceChanged') }} ap
   left join prices p
     on cast(ap.block_timestamp as date) = p.day
   group by day, p.aave_price, p.eth_price
@@ -112,3 +114,66 @@ select
 from raw_data_aave.aave_20wstETH_80AAVE_PoolBalanceChanged
 group by day
 order by day;
+
+
+select * from tokenlogic-data-dev.raw_data.common_balancer_pool_liquidity limit 5;
+
+
+
+with balancer_pool_liquidity_latest_per_day as (
+  select *
+    , rank() over (partition by cast(block_hour as date) order by block_hour desc) as rn
+    from `tokenlogic-data-dev.raw_data.common_balancer_pool_liquidity` 
+    -- from {{ source('raw_data', 'common_balancer_pool_liquidity') }}
+    where symbol = '20wstETH-80AAVE'
+    order by block_hour desc
+)
+, balancer_pool_tvl as (
+  select 
+    cast(FORMAT_TIMESTAMP('%Y-%m-%d', block_hour) as date) as date
+    , tvl_pool
+  from (
+    select 
+      block_hour
+      , total_liquidity as tvl_pool
+      , token_symbol
+      , row_number() over (partition by block_hour order by token_symbol) as row_num
+    from balancer_pool_liquidity_latest_per_day
+    where rn = 1
+    order by block_hour
+  ) where row_num = 1
+  group by date, tvl_pool
+  order by date
+)
+select
+  cast(block_hour as date) as date
+  , avg(case 
+      when json_extract_scalar(entry, '$.title') = 'wstETH APR' then cast(json_extract_scalar(entry, '$.apr') as float64)
+      else null
+      end) as yield_bearing_tokens_apr
+  , avg(case 
+      when json_extract_scalar(entry, '$.title') = 'Swap fees APR' then cast(json_extract_scalar(entry, '$.apr') as float64)
+      else null
+      end) as swap_fees_apr
+  , avg(case 
+      when json_extract_scalar(entry, '$.title') = 'wstETH APR' then cast(json_extract_scalar(entry, '$.apr') as float64)
+      else null
+      end) + 
+      avg(case 
+      when json_extract_scalar(entry, '$.title') = 'Swap fees APR' then cast(json_extract_scalar(entry, '$.apr') as float64)
+      else null
+      end) as total_apr
+  , bpt.tvl_pool 
+from `tokenlogic-data-dev.raw_data.common_balancer_apiv3_results` cbar
+left join balancer_pool_tvl bpt on cast(cbar.block_hour as date) = bpt.date
+,
+  -- from {{ source('raw_data', 'common_balancer_apiv3_results') }},
+  unnest(json_extract_array(dynamicData_aprItems)) as entry
+where symbol = '20wstETH-80AAVE'
+  and json_extract_scalar(entry, '$.title') in ('wstETH APR', 'Swap fees APR')
+group by cast(cbar.block_hour as date), bpt.tvl_pool
+order by date desc;
+
+
+
+select * from datamart_aave.aave_balancer_pool_20wsteth_80aave_tvl_apr;

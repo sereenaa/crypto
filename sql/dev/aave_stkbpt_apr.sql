@@ -143,4 +143,9 @@ left join swap_fee_apr sfa on ej.date = sfa.date
 left join `tokenlogic-data-dev.external_tables.balancer_swap_fees_historical` ash on ej.date = cast(FORMAT_TIMESTAMP('%Y-%m-%d', ash.block_hour) as date)+1
 -- left join external_tables.balancer_swap_fees_historical ash on ej.date = cast(FORMAT_TIMESTAMP('%Y-%m-%d', ash.block_hour) as date)+1
 where ej.date >= '2024-02-10'
-order by ej.date desc
+order by ej.date desc;
+
+
+SELECT * FROM tokenlogic-data-dev.datamart_aave.aave_stkbpt_apr ORDER BY date DESC limit 30;
+
+
