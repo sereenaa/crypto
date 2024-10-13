@@ -70,6 +70,7 @@ with date_index as (
       , case when pair = 'AAVE/USD' then price else null end as aave_price 
       , row_number() over (partition by cast(block_timestamp as date), pair order by block_timestamp) as rn
     from `tokenlogic-data.prices.chainlink_subgraph_prices` 
+    -- from {{ source('prices', 'chainlink_subgraph_prices') }}
     where pair in ('AAVE/USD', 'ETH/USD')
     order by block_timestamp desc
   ) where rn = 1
@@ -189,7 +190,7 @@ with date_index as (
 )
 select 
   a.date-1 as date
-  , round(ej.cumulative_num_stk_lp_tokens_total, 2) as num_stk_lp_tokens 
+  , round(ej.cumulative_num_stk_lp_tokens_total, 2) as num_stk_lp_tokens_total 
   , round(bp.tvl_pool, 2) as tvl_pool
   , round(bp.num_balancer_lp_tokens, 2) as num_balancer_lp_tokens
   , aws.wstETH_balance as wstETH_balance_pool
@@ -220,4 +221,5 @@ order by a.date
 
 
 
-select * from datamart_aave.aave_stkbpt_apr order by date desc;
+select * from tokenlogic-data-dev.datamart_aave.aave_stkbpt_apr order by date desc;
+select * from tokenlogic-data.datamart_aave.aave_stkbpt_apr order by date desc;

@@ -23,6 +23,8 @@ select * from raw_data_aave.aave_20wstETH_80AAVE_PoolBalanceChanged_backfill ord
 -- from raw_data_aave.aave_20wstETH_80AAVE_PoolBalanceChanged_backfill;
 
 select * from raw_data.common_chainhour_block_numbers order by block_height desc limit 100;
+select * from raw_data_aave.chainhour_protocol_data limit 5;
+select distinct reserve_emode_category from raw_data_aave.chainhour_protocol_data order by reserve_emode_category;
 
 select * from datamart_aave.aave_stkbpt_balancer_pool_deposits_withdrawals order by day desc;
 

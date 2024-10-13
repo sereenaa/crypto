@@ -78,8 +78,8 @@ with recursive cte as (
       , inv.user_lp_tokens / apr.num_stk_lp_tokens_total * apr.usd_emission_per_day / apr.tvs * apr.num_stk_lp_tokens_total as lp_tokens_daily_reward_90_days
       , CAST(1 AS INT64) as day_counter_90_days
       , CAST(0 AS FLOAT64) as accumulated_lp_tokens_90_days
-    from `tokenlogic-data-dev.datamart_aave.aave_stkbpt_apr` apr
-    -- from {{ ref('aave_stkbpt_apr') }} apr
+    from `tokenlogic-data-dev.datamart_aave.aave_stkbpt_apr_historical` apr
+    -- from {{ ref('aave_stkbpt_apr_historical') }} apr
     left join `tokenlogic-data-dev.datamart_aave.aave_stkbpt_investment_analysis` inv 
     -- left join {{ ref('aave_stkbpt_investment_analysis') }} inv 
       on date_add(apr.date, interval 1 day) = cast(inv.block_hour as date)
@@ -295,13 +295,20 @@ with recursive cte as (
         else CAST(0 AS FLOAT64)
         end as accumulated_lp_tokens_90_days
   from cte c
-  left join `tokenlogic-data-dev.datamart_aave.aave_stkbpt_apr` apr 
-  -- left join {{ ref('aave_stkbpt_apr') }} apr
+  left join `tokenlogic-data-dev.datamart_aave.aave_stkbpt_apr_historical` apr 
+  -- left join {{ ref('aave_stkbpt_apr_historical') }} apr
     on c.date = apr.date
   left join `tokenlogic-data-dev.datamart_aave.aave_stkbpt_investment_analysis` inv 
   -- left join {{ ref('aave_stkbpt_investment_analysis') }} inv 
     on date_add(c.date, interval 1 day) = cast(inv.block_hour as date)
   where c.date < '2024-03-10'
-  -- where c.date < current_date()
+--   where c.date < current_date()
 )
 select * from cte order by date
+;
+
+
+select * from tokenlogic-data-dev.datamart_aave.aave_stkbpt_investment_analysis;
+select * from tokenlogic-data.datamart_aave.aave_stkbpt_compounding_analysis;
+select * from tokenlogic-data-dev.datamart_aave.aave_stkbpt_compounding_analysis;
+select * from tokenlogic-data.datamart_aave.aave_stkbpt_compounding_analysis;
