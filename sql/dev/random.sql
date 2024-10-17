@@ -39,3 +39,8 @@ SELECT * FROM tokenlogic-data-dev.datamart_aave.aave_stkbpt_apr ORDER BY date DE
 
 
 
+select * from tokenlogic-data-dev.datamart_gho.gho_ethereum_mints_burns_day order by block_day;
+select * from tokenlogic-data-dev.raw_data.gho_chainhour_gho_mints limit 5;
+select * from tokenlogic-data-dev.raw_data.gho_chainhour_gho_mints where cast(block_hour as date) = '2024-09-18';
+select block_hour, chain, block_height, `hash`, `from`, `to`, token, symbol, amount, block_time, count(*) from tokenlogic-data-dev.raw_data.gho_chainhour_gho_mints 
+group by 1,2,3,4,5,6,7,8,9,10 having count(*) > 1;

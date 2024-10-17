@@ -19,8 +19,10 @@ select count(*) from raw_data_aave.aave_ethereum_token_transfers_backfill;
 select * from raw_data_aave.aave_ethereum_token_transfers where transaction_hash = '0x067e7e62767d517b9e04ac1ef86a9ab47066014e2ab378c545b10bfcb7d35990';
 
 
-select * from raw_data_aave.aave_20wstETH_80AAVE_PoolBalanceChanged order by block_timestamp;
+select * from raw_data_aave.aave_20wstETH_80AAVE_PoolBalanceChanged order by block_timestamp desc;
 select * from raw_data_aave.aave_20wstETH_80AAVE_PoolBalanceChanged_backfill order by block_timestamp;
+select block_hash, block_number, block_timestamp, transaction_hash, transaction_index, log_index, `address`, data, topics, removed, token_1, token_2, delta_1, delta_2, protocolFeeAmount_1, protocolFeeAmount_2, count(*)
+from raw_data_aave.aave_20wstETH_80AAVE_PoolBalanceChanged group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16 having count(*) > 1;
 
 -- insert into raw_data_aave.aave_20wstETH_80AAVE_PoolBalanceChanged
 -- select 
@@ -177,3 +179,4 @@ order by date desc;
 
 
 select * from datamart_aave.aave_balancer_pool_20wsteth_80aave_tvl_apr;
+

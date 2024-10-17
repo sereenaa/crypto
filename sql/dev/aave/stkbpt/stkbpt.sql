@@ -63,6 +63,8 @@ select * from `tokenlogic-data-dev.events.aave_stk_token_transfer` where stake_t
 select * from `tokenlogic-data-dev.events.aave_stk_token_transfer` where stake_token = '0x9eda81c21c273a82be9bbc19b6a6182212068101' order by block_day desc limit 100; --stkAAVEwstETHBPTv2
 select min(block_day) from `tokenlogic-data-dev.events.aave_stk_token_transfer` where stake_token = '0x9eda81c21c273a82be9bbc19b6a6182212068101';
 select min(block_day) from `tokenlogic-data-dev.events.aave_stk_token_transfer`;
+select chain, block_timestamp, block_hour, block_day, block_height, tx_hash, log_index, stake_token, symbol, `from`, `to`, `value`, count(*)
+from tokenlogic-data-dev.events.aave_stk_token_transfer group by 1,2,3,4,5,6,7,8,9,10,11,12 having count(*) > 1; 
 
 select * from `tokenlogic-data-dev.raw_data_aave.aave_chainhour_oracle_prices` limit 5;
 select distinct(market) from `tokenlogic-data-dev.raw_data_aave.aave_chainhour_oracle_prices`;
@@ -417,6 +419,8 @@ select distinct(dynamicData_aprItems) from `tokenlogic-data-dev.raw_data.common_
 select distinct(symbol) from `tokenlogic-data-dev.raw_data.common_balancer_apiv3_results` order by symbol;
 select * from `tokenlogic-data-dev.raw_data.common_balancer_apiv3_results` where symbol = '20wstETH-80AAVE';
 select * from `tokenlogic-data.raw_data.common_balancer_apiv3_results` where symbol = '20wstETH-80AAVE';
+select block_hour, id, symbol, `address`, chain, dynamicData_aprItems, dynamicData_swapsCount, dynamicData_swapFee, dynamicData_lifetimeVolume, dynamicData_lifetimeSwapFees, dynamicData_totalLiquidity,
+count(*) from tokenlogic-data-dev.raw_data.common_balancer_apiv3_results group by 1,2,3,4,5,6,7,8,9,10,11 having count(*) > 1;
 
 
 select token_latest_usd_price from `tokenlogic-data.raw_data.common_balancer_pool_liquidity` where token_symbol = 'AAVE' and symbol = '20wstETH-80AAVE';
