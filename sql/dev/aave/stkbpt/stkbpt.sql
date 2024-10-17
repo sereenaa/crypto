@@ -723,33 +723,6 @@ from compounding4
 
 
 
-select * from `tokenlogic-data-dev.events.aave_stk_token_transfer` where stake_token = '0x9eda81c21c273a82be9bbc19b6a6182212068101' order by block_day desc limit 100; --stkAAVEwstETHBPTv2
-select count(*) from `tokenlogic-data-dev.events.aave_stk_token_transfer` where stake_token = '0x9eda81c21c273a82be9bbc19b6a6182212068101'; --stkAAVEwstETHBPTv2
-select min(block_timestamp) from `tokenlogic-data-dev.events.aave_stk_token_transfer` where stake_token = '0x9eda81c21c273a82be9bbc19b6a6182212068101'; --stkAAVEwstETHBPTv2
-
-
--- events.aave_stk_token_transfer
--- contains StakeToken Transfer events for all Aave stake tokens
-SELECT 
-  m.chain
-  , timestamp_seconds(m.block_timestamp) as block_timestamp
-  , date_trunc(timestamp_seconds(m.block_timestamp), hour) as block_hour
-  , date_trunc(timestamp_seconds(m.block_timestamp), day) as block_day
-  , m.block_height
-  , m.tx_hash
-  , m.log_index
-  , m.contract_address as stake_token
-  , m.symbol
-  , m.from_ as `from`
-  , m.to as `to`
-  , cast(m.value as bignumeric) as value
-FROM `tokenlogic-data-dev.indexer_prod.stk_token_transfer` m
-where m.contract_address = '0x9eda81c21c273a82be9bbc19b6a6182212068101'
-order by block_timestamp
-  -- and cast(timestamp_seconds(block_timestamp) as date) = '2024-10-07'
-
-
-
 -- number of staked and unstaked BPTs from the safety module per day
 with deposits as (
   select 
