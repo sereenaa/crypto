@@ -128,6 +128,7 @@ order by ej.date
 
 
 select * from tokenlogic-data-dev.datamart_aave.aave_stkbpt_apr_historical;
+select * from tokenlogic-data.datamart_aave.aave_stkbpt_apr_historical;
 
 
 

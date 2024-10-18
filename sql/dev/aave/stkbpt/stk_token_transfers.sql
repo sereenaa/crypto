@@ -68,7 +68,7 @@ select
 from raw_data_aave.aave_stk_token_transfers_bigquery
 ;
 
-select * from events.aave_stk_token_transfers_bigquery where tx_hash = '0xf827724514abd57ca92c5a8964c08567e9bddd40c9e22cd685dd1493cf2c36e1' order by block_timestamp;
+select * from datamart_aave.aave_stk_token_transfers_bigquery where tx_hash = '0xf827724514abd57ca92c5a8964c08567e9bddd40c9e22cd685dd1493cf2c36e1' order by block_timestamp;
 select * from events.aave_stk_token_transfer where tx_hash = '0xf827724514abd57ca92c5a8964c08567e9bddd40c9e22cd685dd1493cf2c36e1' order by block_timestamp;
 
 
