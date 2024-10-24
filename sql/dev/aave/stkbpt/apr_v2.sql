@@ -84,8 +84,8 @@ with date_index as (
         when `to` = '0x0000000000000000000000000000000000000000' then cast(value as numeric)
         else 0 
       end) as num_stk_lp_tokens_burned
-  from events.aave_stk_token_transfer
-  -- from {{ source('events', 'aave_stk_token_transfer') }}
+  from `tokenlogic-data.datamart_aave.aave_stk_token_transfers_bigquery`
+  -- from {{ ref('aave_stk_token_transfers_bigquery') }}
   where stake_token = '0x9eda81c21c273a82be9bbc19b6a6182212068101' --stkAAVEwstETHBPTv2
   group by date
   order by date
@@ -112,7 +112,7 @@ with date_index as (
       , case when pair = 'ETH/USD' then price else null end as wstETH_price 
       , case when pair = 'AAVE/USD' then price else null end as aave_price 
       , row_number() over (partition by cast(block_timestamp as date), pair order by block_timestamp) as rn
-    from prices.chainlink_subgraph_prices
+    from `tokenlogic-data.prices.chainlink_subgraph_prices` 
     -- from {{ source('prices', 'chainlink_subgraph_prices') }}
     where pair in ('AAVE/USD', 'ETH/USD')
     order by block_timestamp desc
@@ -126,7 +126,7 @@ with date_index as (
     -- , asset
     -- , asset_symbol
     , emission_per_day as num_aave_tokens_emission_per_day
-  from events.aave_stk_token_asset_config_updated
+  from `tokenlogic-data.events.aave_stk_token_asset_config_updated`
   -- from {{ source('events', 'aave_stk_token_asset_config_updated') }}
   where asset in ('0xa1116930326d21fb917d5a27f1e9943a9595fb47', '0x9eda81c21c273a82be9bbc19b6a6182212068101')
     and emission_per_day <> 0.0
@@ -151,14 +151,10 @@ with date_index as (
   select *
     , row_number() over (partition by cast(block_hour as date) order by block_hour) as rn
     , rank() over (partition by cast(block_hour as date) order by block_hour) as rank
-  from raw_data.common_balancer_pool_liquidity
-  -- from {{ source('raw_data', 'common_balancer_pool_liquidity') }}
-  where symbol = '20wstETH-80AAVE'
-    and block_hour = '2024-10-14T00:00:00.000Z'
-  order by block_hour desc
-
-    -- delete from raw_data.common_balancer_pool_liquidity where block_hour = '2024-10-14T00:00:00.000Z' and pool_id = '0x3de27efa2f1aa663ae5d458857e731c129069f29000200000000000000000588'
-    -- and name = '20wstETH-80AAVE';
+    from `tokenlogic-data.raw_data.common_balancer_pool_liquidity` 
+    -- from {{ source('raw_data', 'common_balancer_pool_liquidity') }}
+    where symbol = '20wstETH-80AAVE'
+    order by block_hour desc
 )
 , daily_swap_volume as (
   select 
@@ -228,8 +224,8 @@ with date_index as (
         when json_extract_scalar(entry, '$.title') = 'Swap fees APR' then cast(json_extract_scalar(entry, '$.apr') as float64)
         else null
         end) as swap_fee_yield
-  from raw_data.common_balancer_apiv3_results
-  -- from {{ source('raw_data', 'common_balancer_apiv3_results') }}
+  -- from `tokenlogic-data.raw_data.common_balancer_apiv3_results`
+  from {{ source('raw_data', 'common_balancer_apiv3_results') }}
     , unnest(json_extract_array(dynamicData_aprItems)) as entry
   where symbol = '20wstETH-80AAVE'
     and json_extract_scalar(entry, '$.title') in ('wstETH APR', 'Swap fees APR')
@@ -264,7 +260,6 @@ left join aave_wsteth_split aws on a.date = aws.date
 left join emission_joined ej on a.date = ej.date 
 left join balancer_pool_tvl_and_supply bp on a.date = bp.date
 order by a.date 
-
 
 
 

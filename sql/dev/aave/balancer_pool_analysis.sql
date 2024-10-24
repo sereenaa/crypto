@@ -119,7 +119,7 @@ order by day;
 
 
 select * from tokenlogic-data-dev.raw_data.common_balancer_pool_liquidity limit 5;
-
+select * from tokenlogic-data.raw_data.common_balancer_pool_liquidity where pool_address = '0x3de27efa2f1aa663ae5d458857e731c129069f29' order by block_hour;
 
 
 with balancer_pool_liquidity_latest_per_day as (

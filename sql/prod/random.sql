@@ -34,3 +34,9 @@ select distinct symbol from prices.redstone_prices order by symbol;
 
 select * from indexer_prod.stk_token_transfer where contract_address = '0x9eda81c21c273a82be9bbc19b6a6182212068101' order by block_timestamp desc;
 select * from events.aave_stk_token_transfer where stake_token = '0x9eda81c21c273a82be9bbc19b6a6182212068101' order by block_timestamp desc limit 100;
+
+select * from datamart_gearbox.gearbox_deposit_borrow_rate_hour;
+select * from datamart_aave.aave_annual_expenses_by_discipline;
+select * from datamart_gearbox.gearbox_annual_expenses_by_discipline;
+select * From datamart_gearbox.gearbox_annual_expenses_detail;
+select * from datamart_gearbox.gearbox_annual_expenses_contributors;
